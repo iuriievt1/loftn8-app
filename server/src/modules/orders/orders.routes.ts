@@ -4,6 +4,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
+import { requireUser } from "../../middleware/auth/requireUser";
 import { HttpError } from "../../utils/httpError";
 import { notifyOrderCreated } from "../staff/push.service";
 
@@ -19,16 +20,17 @@ const CreateOrderSchema = z.object({
         comment: z.string().max(300).optional(),
       })
     )
-    .min(1),
+    .min(1), 
 });
 
 ordersRouter.post(
   "/",
   guestSessionAuth,
+  requireUser,
   validate(CreateOrderSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
-    const user = req.user;
+    const user = req.user as { id: string }; // ✅ TS fix
 
     const body = req.body as z.infer<typeof CreateOrderSchema>;
     const menuItemIds = body.items.map((i) => i.menuItemId);
@@ -47,7 +49,7 @@ ordersRouter.post(
       data: {
         sessionId: session.id,
         tableId: session.tableId,
-        userId: user?.id ?? null,
+        userId: user.id, // ✅ теперь не красным
         comment: body.comment,
         items: {
           create: body.items.map((it) => ({
@@ -61,7 +63,6 @@ ordersRouter.post(
       include: { items: true },
     });
 
-    // ✅ PUSH (не ломаем создание заказа, если пуш упал)
     try {
       await notifyOrderCreated(order.id);
     } catch (e) {
@@ -75,6 +76,7 @@ ordersRouter.post(
 ordersRouter.get(
   "/current",
   guestSessionAuth,
+  requireUser,
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
     const orders = await prisma.order.findMany({

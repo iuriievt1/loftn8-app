@@ -62,7 +62,7 @@ model User {
   updatedAt          DateTime  @updatedAt
 
   sessions             GuestSession[]
-  loyaltyTransactions  LoyaltyTransaction[]
+  loyaltyTransactions  LoyaltyTransaction[] 
   orders               Order[]
   paymentConfirmations PaymentConfirmation[]
 }
@@ -95,7 +95,8 @@ model MenuItem {
   categoryId  Int
   name        String
   description String?
-  priceCzk    Int
+  priceCzk    Int 
+  imageUrl    String?      
   isActive    Boolean      @default(true)
   sort        Int          @default(0)
   createdAt   DateTime     @default(now())
@@ -192,7 +193,7 @@ model PaymentConfirmation {
   id               String              @id @default(cuid())
   paymentRequestId String              @unique
   venueId          Int
-  staffId          String
+  staffId          String 
   userId           String?
   method           PaymentMethod
   amountCzk        Int

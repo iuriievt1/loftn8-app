@@ -4,6 +4,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
+import { requireUser } from "../../middleware/auth/requireUser";
 
 export const ratingsRouter = Router();
 
@@ -12,12 +13,13 @@ const RatingSchema = z.object({
   food: z.number().int().min(1).max(5).optional(),
   drinks: z.number().int().min(1).max(5).optional(),
   hookah: z.number().int().min(1).max(5).optional(),
-  comment: z.string().max(800).optional(),
+  comment: z.string().max(800).optional(), 
 });
 
 ratingsRouter.post(
   "/",
   guestSessionAuth,
+  requireUser,
   validate(RatingSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;

@@ -99,7 +99,7 @@ authRouter.post(
       return res.json({ ok: true, devOtp: code, expiresInSec: 600 });
     }
 
-    // PROD: тут потом подключишь SMS
+    // PROD: тут потом SMS
     return res.json({ ok: true });
   })
 );
@@ -158,7 +158,7 @@ authRouter.post(
           email: emailNorm,
           privacyAcceptedAt: new Date(),
         },
-      });
+      }); 
     }
 
     const uidToken = jwt.sign({ userId: user!.id, role: user!.role }, env.JWT_USER_SECRET, { expiresIn: "30d" });

@@ -4,6 +4,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
+import { requireUser } from "../../middleware/auth/requireUser";
 import { notifyPaymentRequested } from "../staff/push.service";
 
 export const paymentsRouter = Router();
@@ -15,6 +16,7 @@ const RequestPaymentSchema = z.object({
 paymentsRouter.post(
   "/request",
   guestSessionAuth,
+  requireUser,
   validate(RequestPaymentSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
@@ -28,7 +30,6 @@ paymentsRouter.post(
       },
     });
 
-    // ✅ PUSH
     try {
       await notifyPaymentRequested(payment.id);
     } catch (e) {

@@ -4,7 +4,6 @@ import { asyncHandler } from "../../utils/asyncHandler";
 
 export const menuRouter = Router();
 
-// V1: один venue (pilot). Берём меню по venue.slug = "pilot"
 menuRouter.get(
   "/",
   asyncHandler(async (_req, res) => {
@@ -13,12 +12,11 @@ menuRouter.get(
 
     const categories = await prisma.menuCategory.findMany({
       where: { venueId: venue.id },
-      // ✅ сначала секции (DISHES/DRINKS/HOOKAH), потом порядок внутри секции
       orderBy: [{ section: "asc" }, { sort: "asc" }],
       include: {
         items: {
           where: { isActive: true },
-          orderBy: { sort: "asc" },
+          orderBy: { sort: "asc" }, 
         },
       },
     });
@@ -29,12 +27,13 @@ menuRouter.get(
         id: c.id,
         name: c.name,
         sort: c.sort,
-        section: c.section, // ✅ NEW
+        section: c.section,
         items: c.items.map((i) => ({
           id: i.id,
           name: i.name,
           description: i.description,
           priceCzk: i.priceCzk,
+          imageUrl: (i as any).imageUrl ?? null, // ✅ return it
         })),
       })),
     });

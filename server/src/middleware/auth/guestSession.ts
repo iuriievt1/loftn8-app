@@ -20,7 +20,7 @@ export async function guestSessionAuth(req: Request, _res: Response, next: NextF
 
   const session = await prisma.guestSession.findUnique({
     where: { id: guestPayload.sessionId },
-    include: { table: true },
+    include: { table: true }, 
   });
 
   if (!session || session.endedAt) {
