@@ -15,8 +15,8 @@ type Intent = "login" | "register";
 const RequestOtpSchema = z.object({
   phone: z.string().min(6),
   intent: z.enum(["login", "register"]).optional(),
-  name: z.string().optional(),  // для login можем проверить имя
-  email: z.string().optional(), // игнорируем на request
+  name: z.string().optional(),
+  email: z.string().optional(),
 });
 
 const VerifyOtpSchema = z.object({
@@ -29,10 +29,12 @@ const VerifyOtpSchema = z.object({
 });
 
 function setCookie(res: any, name: string, value: string, maxAgeSeconds: number) {
+  const isProd = env.NODE_ENV === "production";
+
   res.cookie(name, value, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     domain: env.COOKIE_DOMAIN || undefined,
     maxAge: maxAgeSeconds * 1000,
     path: "/",
@@ -80,7 +82,6 @@ authRouter.post(
       const user = await prisma.user.findUnique({ where: { phone } });
       if (!user) throw new HttpError(404, "NO_ACCOUNT", "Account not found. Please register.");
 
-      // ✅ проверка "по имени и телефону"
       if (nameRaw) {
         const okName = normalizeName(nameRaw) === normalizeName(user.name);
         if (!okName) throw new HttpError(404, "NAME_MISMATCH", "Account not found. Please register.");
@@ -93,14 +94,13 @@ authRouter.post(
 
     await prisma.otpCode.create({ data: { phone, codeHash, expiresAt } });
 
-    // DEV: возвращаем код + логируем в консоль
-    if (env.NODE_ENV === "development") {
-      console.log(`[DEV OTP] phone=${phone} code=${code}`);
-      return res.json({ ok: true, devOtp: code, expiresInSec: 600 });
-    }
-
-    // PROD: тут потом SMS
-    return res.json({ ok: true });
+    // DEMO / TEST MODE — всегда возвращаем код на UI
+    console.log(`[OTP DEMO] phone=${phone} code=${code}`);
+    return res.json({
+      ok: true,
+      devOtp: code,
+      expiresInSec: 600,
+    });
   })
 );
 
@@ -133,13 +133,11 @@ authRouter.post(
     if (intent === "login") {
       if (!user) throw new HttpError(404, "NO_ACCOUNT", "Account not found. Please register.");
 
-      // ✅ вход по имени+телефону: имя должно совпадать
       if (nameRaw) {
         const okName = normalizeName(nameRaw) === normalizeName(user.name);
         if (!okName) throw new HttpError(404, "NAME_MISMATCH", "Account not found. Please register.");
       }
     } else {
-      // register
       if (!nameRaw) throw new HttpError(400, "NAME_REQUIRED", "Name is required");
       if (!consent) throw new HttpError(400, "CONSENT_REQUIRED", "Consent is required");
 
@@ -158,13 +156,17 @@ authRouter.post(
           email: emailNorm,
           privacyAcceptedAt: new Date(),
         },
-      }); 
+      });
     }
 
-    const uidToken = jwt.sign({ userId: user!.id, role: user!.role }, env.JWT_USER_SECRET, { expiresIn: "30d" });
+    const uidToken = jwt.sign(
+      { userId: user!.id, role: user!.role },
+      env.JWT_USER_SECRET,
+      { expiresIn: "30d" }
+    );
+
     setCookie(res, "uid", uidToken, 60 * 60 * 24 * 30);
 
-    // если есть гостевая сессия — привяжем userId
     const gsid = (req.cookies?.gsid as string | undefined) ?? undefined;
     if (gsid) {
       try {
