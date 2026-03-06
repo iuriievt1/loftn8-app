@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 
-const TABLE_STORAGE_KEY = "loft_table_code";
+const TABLE_STORAGE_KEY = "tableCode";
 
 export function RequireTable({ children }: { children: React.ReactNode }) {
   const sp = useSearchParams();
@@ -28,7 +28,6 @@ export function RequireTable({ children }: { children: React.ReactNode }) {
       setErr(null);
       setReady(false);
 
-      // 1) если уже есть активная guest session — пропускаем
       try {
         await api("/guest/me");
         if (!cancelled) setReady(true);
@@ -37,8 +36,7 @@ export function RequireTable({ children }: { children: React.ReactNode }) {
         // ignore
       }
 
-      // 2) ищем tableCode: query -> path -> localStorage
-      let tableCode =
+      const tableCode =
         queryTable ||
         pathTable ||
         (typeof window !== "undefined" ? localStorage.getItem(TABLE_STORAGE_KEY) : null);
@@ -65,7 +63,6 @@ export function RequireTable({ children }: { children: React.ReactNode }) {
             setErr(e?.message ?? "Не удалось создать сессию стола");
           }
 
-          // если стол битый — отправляем на выбор стола
           setTimeout(() => {
             router.replace("/table");
           }, 700);
@@ -74,7 +71,6 @@ export function RequireTable({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 3) если стола нет вообще — сразу ведём на экран выбора
       if (!cancelled) {
         setErr("Не выбран стол. Перенаправляем на экран выбора…");
       }
