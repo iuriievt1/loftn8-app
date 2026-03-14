@@ -3,11 +3,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
-function normTableNumber(x: string) {
-  let v = x.trim().toUpperCase().replace(/\s+/g, "");
-  if (v.startsWith("T")) v = v.slice(1);
-  v = v.replace(/\D/g, "");
-  return v;
+function extractTableCode(rawInput: string): string | null {
+  const raw = String(rawInput || "").trim();
+
+  // 1) если пришла полная ссылка
+  try {
+    const url = new URL(raw);
+
+    // /t/T3
+    const pathMatch = url.pathname.match(/\/t\/(T?\d+)$/i);
+    if (pathMatch?.[1]) {
+      const v = pathMatch[1].toUpperCase();
+      return v.startsWith("T") ? v : `T${v}`;
+    }
+
+    // ?table=T3
+    const qp = url.searchParams.get("table");
+    if (qp) {
+      const v = qp.trim().toUpperCase().replace(/\s+/g, "");
+      if (/^\d+$/.test(v)) return `T${v}`;
+      if (/^T\d+$/.test(v)) return v;
+    }
+  } catch {
+    // не URL — ок, идём дальше
+  }
+
+  // 2) просто T3
+  const compact = raw.toUpperCase().replace(/\s+/g, "");
+  if (/^T\d+$/.test(compact)) return compact;
+
+  // 3) просто 3
+  if (/^\d+$/.test(compact)) return `T${compact}`;
+
+  return null;
 }
 
 const SCANNER_ID = "loft-table-qr-reader";
@@ -23,16 +51,20 @@ export default function TablePage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const startingRef = useRef(false);
 
-  const n = useMemo(() => normTableNumber(table), [table]);
-  const canGo = n.length > 0;
+  const canGo = useMemo(() => {
+    const code = extractTableCode(table);
+    return !!code;
+  }, [table]);
 
   const go = () => {
     setErr(null);
-    if (!canGo) {
+
+    const code = extractTableCode(table);
+    if (!code) {
       setErr("Введите номер стола");
       return;
     }
-    const code = `T${n}`;
+
     window.location.href = `/t/${encodeURIComponent(code)}`;
   };
 
@@ -83,14 +115,18 @@ export default function TablePage() {
           disableFlip: false,
         },
         async (decodedText) => {
-          const raw = String(decodedText ?? "").trim();
-          const num = normTableNumber(raw);
+          const code = extractTableCode(decodedText);
 
-          if (!num) return;
+          if (!code) {
+            setScanErr("QR считан, но формат не распознан. Нужен код стола или ссылка вида /t/T1");
+            return;
+          }
 
-          setTable(num);
+          setTable(code);
           setScanOpen(false);
           await stopScan();
+
+          window.location.href = `/t/${encodeURIComponent(code)}`;
         },
         () => {
           // ignore decode errors
@@ -169,11 +205,11 @@ export default function TablePage() {
               value={table}
               onChange={(e) => {
                 setErr(null);
-                setTable(normTableNumber(e.target.value));
+                setTable(e.target.value);
               }}
               placeholder="Например: 3"
               className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
-              inputMode="numeric"
+              inputMode="text"
             />
             <button
               onClick={go}
