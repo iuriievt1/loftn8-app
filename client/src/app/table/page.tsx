@@ -6,18 +6,15 @@ import { Html5Qrcode } from "html5-qrcode";
 function extractTableCode(rawInput: string): string | null {
   const raw = String(rawInput || "").trim();
 
-  // 1) если пришла полная ссылка
   try {
     const url = new URL(raw);
 
-    // /t/T3
     const pathMatch = url.pathname.match(/\/t\/(T?\d+)$/i);
     if (pathMatch?.[1]) {
       const v = pathMatch[1].toUpperCase();
       return v.startsWith("T") ? v : `T${v}`;
     }
 
-    // ?table=T3
     const qp = url.searchParams.get("table");
     if (qp) {
       const v = qp.trim().toUpperCase().replace(/\s+/g, "");
@@ -25,14 +22,11 @@ function extractTableCode(rawInput: string): string | null {
       if (/^T\d+$/.test(v)) return v;
     }
   } catch {
-    // не URL — ок, идём дальше
+    // not a URL
   }
 
-  // 2) просто T3
   const compact = raw.toUpperCase().replace(/\s+/g, "");
   if (/^T\d+$/.test(compact)) return compact;
-
-  // 3) просто 3
   if (/^\d+$/.test(compact)) return `T${compact}`;
 
   return null;
@@ -47,25 +41,26 @@ export default function TablePage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanErr, setScanErr] = useState<string | null>(null);
   const [startingScan, setStartingScan] = useState(false);
+  const [processingFile, setProcessingFile] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const startingRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const canGo = useMemo(() => {
-    const code = extractTableCode(table);
-    return !!code;
-  }, [table]);
+  const canGo = useMemo(() => !!extractTableCode(table), [table]);
+
+  const goToTable = (code: string) => {
+    window.location.href = `/t/${encodeURIComponent(code)}`;
+  };
 
   const go = () => {
     setErr(null);
-
     const code = extractTableCode(table);
     if (!code) {
-      setErr("Введите номер стола");
+      setErr("Введите номер стола или отсканируйте QR");
       return;
     }
-
-    window.location.href = `/t/${encodeURIComponent(code)}`;
+    goToTable(code);
   };
 
   const stopScan = async () => {
@@ -91,6 +86,20 @@ export default function TablePage() {
     startingRef.current = false;
   };
 
+  const handleDecoded = async (decodedText: string) => {
+    const code = extractTableCode(decodedText);
+
+    if (!code) {
+      setScanErr("QR считан, но формат не распознан. Нужен код стола или ссылка вида /t/T1");
+      return;
+    }
+
+    setTable(code);
+    setScanOpen(false);
+    await stopScan();
+    goToTable(code);
+  };
+
   const startScan = async () => {
     if (startingRef.current) return;
 
@@ -100,36 +109,34 @@ export default function TablePage() {
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Нет доступа к камере. Введите номер вручную.");
+        throw new Error("Нет доступа к камере. Используйте фото QR или введите номер вручную.");
       }
+
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras?.length) {
+        throw new Error("Камера не найдена. Используйте фото QR или введите номер вручную.");
+      }
+
+      // стараемся выбрать заднюю камеру
+      const preferredCamera =
+        cameras.find((c) => /back|rear|environment/i.test(c.label))?.id || cameras[0].id;
 
       const scanner = new Html5Qrcode(SCANNER_ID);
       scannerRef.current = scanner;
 
       await scanner.start(
-        { facingMode: "environment" },
+        preferredCamera,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          // специально НЕ задаём qrbox, чтобы iPhone мог искать по всему кадру
           aspectRatio: 1,
           disableFlip: false,
         },
         async (decodedText) => {
-          const code = extractTableCode(decodedText);
-
-          if (!code) {
-            setScanErr("QR считан, но формат не распознан. Нужен код стола или ссылка вида /t/T1");
-            return;
-          }
-
-          setTable(code);
-          setScanOpen(false);
-          await stopScan();
-
-          window.location.href = `/t/${encodeURIComponent(code)}`;
+          await handleDecoded(decodedText);
         },
         () => {
-          // ignore decode errors
+          // ignore decode noise
         }
       );
     } catch (e: any) {
@@ -138,6 +145,30 @@ export default function TablePage() {
     } finally {
       setStartingScan(false);
       startingRef.current = false;
+    }
+  };
+
+  const onPickQrImage = async (file: File | null) => {
+    if (!file) return;
+
+    setScanErr(null);
+    setProcessingFile(true);
+
+    try {
+      const scanner = new Html5Qrcode(SCANNER_ID);
+      const decodedText = await scanner.scanFile(file, true);
+      try {
+        scanner.clear();
+      } catch {
+        // ignore
+      }
+
+      await handleDecoded(decodedText);
+    } catch (e: any) {
+      setScanErr(e?.message ?? "Не удалось прочитать QR с фото");
+    } finally {
+      setProcessingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -179,13 +210,33 @@ export default function TablePage() {
               </div>
             ) : (
               <div className="mt-3 text-xs text-white/60">
-                Наведи камеру на QR на столе. Если не работает — введи номер вручную.
+                Наведи камеру на QR на столе. Если не считывает — сделай фото QR и загрузи его ниже.
               </div>
             )}
 
             {startingScan ? (
               <div className="mt-2 text-xs text-white/50">Запускаем камеру…</div>
             ) : null}
+
+            <div className="mt-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => void onPickQrImage(e.target.files?.[0] ?? null)}
+              />
+
+              <button
+                type="button"
+                className="h-12 w-full rounded-2xl border border-white/10 bg-transparent text-sm font-semibold text-white/85"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={processingFile}
+              >
+                {processingFile ? "Обрабатываем фото…" : "Сканировать QR с фото / камеры"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
