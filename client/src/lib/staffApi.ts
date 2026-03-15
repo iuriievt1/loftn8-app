@@ -77,6 +77,8 @@ export type ShiftParticipant = {
   staffId: string;
   role: StaffRole;
   joinedAt: string;
+  leftAt?: string | null;
+  isActive?: boolean;
   staff?: {
     id: string;
     username: string;
@@ -252,4 +254,114 @@ export async function confirmPayment(id: string, amountCzk: number): Promise<Api
     [`/staff/dashboard/payments/${id}/confirm`, `/staff/payments/${id}/confirm`],
     { method: "POST", body: JSON.stringify({ amountCzk }) }
   );
+}
+
+// --------- ADMIN ----------
+export type AdminSummary = {
+  usersCount: number;
+  ordersCount: number;
+  callsCount: number;
+  ratingsCount: number;
+  confirmedPaymentsCount: number;
+  totalRevenueCzk: number;
+  avgOverall: number | null;
+  avgFood: number | null;
+  avgDrinks: number | null;
+  avgHookah: number | null;
+  shiftsTotal: number;
+  openShift: {
+    id: string;
+    openedAt: string;
+    openedByManagerId: string;
+  } | null;
+};
+
+export type AdminShiftItem = {
+  id: string;
+  status: "OPEN" | "CLOSED";
+  openedAt: string;
+  closedAt: string | null;
+  openedByManager?: { id: string; username: string; role: StaffRole };
+  closedByManager?: { id: string; username: string; role: StaffRole } | null;
+  participants: Array<{
+    id: string;
+    staffId: string;
+    role: StaffRole;
+    joinedAt: string;
+    leftAt: string | null;
+    isActive: boolean;
+    staff?: { id: string; username: string; role: StaffRole };
+  }>;
+  guestSessions?: Array<{ id: string }>;
+};
+
+export type AdminRatingItem = {
+  id: string;
+  overall: number;
+  food: number | null;
+  drinks: number | null;
+  hookah: number | null;
+  comment: string | null;
+  createdAt: string;
+  table: { id: number; code: string; label: string | null };
+  session: {
+    id: string;
+    shiftId: string | null;
+    user: { id: string; name: string; phone: string } | null;
+  };
+};
+
+export type AdminUserItem = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  role: string;
+  privacyAcceptedAt: string | null;
+  createdAt: string;
+};
+
+export type AdminStaffPerformanceItem = {
+  id: string;
+  username: string;
+  role: StaffRole;
+  createdAt: string;
+  shiftsJoined: number;
+  confirmedPaymentsCount: number;
+  confirmedPaymentsSumCzk: number;
+};
+
+export async function getAdminSummary(): Promise<ApiResult<{ summary: AdminSummary }>> {
+  return tryPaths<{ ok: true; summary: AdminSummary }>(
+    ["/staff/admin/summary"],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { summary: r.data.summary } } : r));
+}
+
+export async function getAdminShifts(): Promise<ApiResult<{ shifts: AdminShiftItem[] }>> {
+  return tryPaths<{ ok: true; shifts: AdminShiftItem[] }>(
+    ["/staff/admin/shifts"],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { shifts: r.data.shifts } } : r));
+}
+
+export async function getAdminRatings(): Promise<ApiResult<{ ratings: AdminRatingItem[] }>> {
+  return tryPaths<{ ok: true; ratings: AdminRatingItem[] }>(
+    ["/staff/admin/ratings"],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { ratings: r.data.ratings } } : r));
+}
+
+export async function getAdminUsers(): Promise<ApiResult<{ users: AdminUserItem[] }>> {
+  return tryPaths<{ ok: true; users: AdminUserItem[] }>(
+    ["/staff/admin/users"],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { users: r.data.users } } : r));
+}
+
+export async function getAdminStaffPerformance(): Promise<ApiResult<{ staff: AdminStaffPerformanceItem[] }>> {
+  return tryPaths<{ ok: true; staff: AdminStaffPerformanceItem[] }>(
+    ["/staff/admin/staff-performance"],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { staff: r.data.staff } } : r));
 }
