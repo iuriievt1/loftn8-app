@@ -19,9 +19,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
 
   const isAdmin = staff?.role === "ADMIN";
   const isManager = staff?.role === "MANAGER";
-
-  const title = isAdmin ? "Админ-панель" : "Панель персонала";
-  const subtitle = staff ? `${staff.username} • ${staff.role} • venue #${staff.venueId}` : null;
+  const isAdminPage = pathname.startsWith("/staff/admin");
 
   return (
     <div className="min-h-dvh bg-[#07070a] text-white">
@@ -30,17 +28,24 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         <div className="absolute -bottom-40 left-1/4 h-[420px] w-[420px] rounded-full bg-white/5 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-md p-4 pb-10">
+      <div className={`relative mx-auto p-4 pb-10 ${isAdminPage ? "max-w-7xl" : "max-w-md"}`}>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-xs text-white/50">Loft N8 • Staff</div>
-              <div className="mt-1 text-lg font-semibold">{title}</div>
-              {subtitle ? <div className="mt-1 text-xs text-white/60">{subtitle}</div> : null}
+              <div className="text-xs text-white/50">Loft №8 • Staff</div>
+              <div className="mt-1 text-lg font-semibold">
+                {isAdminPage ? "Админ-панель" : "Панель персонала"}
+              </div>
+
+              {staff ? (
+                <div className="mt-1 text-xs text-white/60">
+                  {staff.username} • {staff.role} • venue #{staff.venueId}
+                </div>
+              ) : null}
             </div>
 
             <button
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
+              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
               onClick={onLogout}
             >
               Выйти
@@ -54,21 +59,21 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
               </div>
             ) : null}
 
-            {(isAdmin || isManager) ? (
+            {(isAdmin || isManager) && (
               <Link
                 href="/staff/admin"
                 className={[
                   "rounded-2xl border px-3 py-2 text-sm transition",
-                  pathname === "/staff/admin"
+                  pathname.startsWith("/staff/admin")
                     ? "border-white/20 bg-white/15 text-white"
                     : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white",
                 ].join(" ")}
               >
                 Admin
               </Link>
-            ) : null}
+            )}
 
-            {isAdmin ? (
+            {isAdmin && (
               <Link
                 href="/staff/summary"
                 className={[
@@ -80,7 +85,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
               >
                 Staff view
               </Link>
-            ) : null}
+            )}
           </div>
         </div>
 

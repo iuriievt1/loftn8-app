@@ -6,6 +6,17 @@ type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; error: string; status: number };
 export type ApiResult<T> = ApiOk<T> | ApiErr;
 
+export type AdminRange = "all" | "today" | "week" | "month";
+
+function withQuery(path: string, params?: Record<string, string | undefined>) {
+  const sp = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([k, v]) => {
+    if (v) sp.set(k, v);
+  });
+  const qs = sp.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -39,7 +50,6 @@ async function tryPaths<T>(paths: string[], init?: RequestInit): Promise<ApiResu
   for (const p of paths) {
     const r = await fetchJson<T>(p, init);
     last = r;
-
     if (r.ok) return r;
     if (!r.ok && r.status !== 404) return r;
   }
@@ -61,7 +71,6 @@ export async function staffLogin(
   });
 
   if (!r.ok) return r;
-
   return { ok: true, data: { staff: r.data.staff } };
 }
 
@@ -110,41 +119,34 @@ export type ActiveShift = {
 };
 
 export async function getCurrentShift(): Promise<ApiResult<{ shift: ActiveShift | null }>> {
-  return tryPaths<{ ok: true; shift: ActiveShift | null }>(
-    ["/staff/shift/current"],
-    { method: "GET" }
-  ).then((r) => (r.ok ? { ok: true, data: { shift: r.data.shift } } : r));
+  return tryPaths<{ ok: true; shift: ActiveShift | null }>(["/staff/shift/current"], {
+    method: "GET",
+  }).then((r) => (r.ok ? { ok: true, data: { shift: r.data.shift } } : r));
 }
 
 export async function openShift(): Promise<ApiResult<{ shift: ActiveShift }>> {
-  return tryPaths<{ ok: true; shift: ActiveShift }>(
-    ["/staff/shift/open"],
-    { method: "POST" }
-  ).then((r) => (r.ok ? { ok: true, data: { shift: r.data.shift } } : r));
+  return tryPaths<{ ok: true; shift: ActiveShift }>(["/staff/shift/open"], {
+    method: "POST",
+  }).then((r) => (r.ok ? { ok: true, data: { shift: r.data.shift } } : r));
 }
 
 export async function joinShift(): Promise<ApiResult<{ shiftId: string }>> {
-  return tryPaths<{ ok: true; shiftId: string }>(
-    ["/staff/shift/join"],
-    { method: "POST" }
-  ).then((r) => (r.ok ? { ok: true, data: { shiftId: r.data.shiftId } } : r));
+  return tryPaths<{ ok: true; shiftId: string }>(["/staff/shift/join"], {
+    method: "POST",
+  }).then((r) => (r.ok ? { ok: true, data: { shiftId: r.data.shiftId } } : r));
 }
 
 export async function leaveShift(): Promise<ApiResult<{ ok: true }>> {
-  return tryPaths<{ ok: true }>(
-    ["/staff/shift/leave"],
-    { method: "POST" }
-  );
+  return tryPaths<{ ok: true }>(["/staff/shift/leave"], {
+    method: "POST",
+  });
 }
 
 export async function closeShift(): Promise<ApiResult<{ shiftId: string; closedAt: string }>> {
-  return tryPaths<{ ok: true; shiftId: string; closedAt: string }>(
-    ["/staff/shift/close"],
-    { method: "POST" }
-  ).then((r) =>
-    r.ok
-      ? { ok: true, data: { shiftId: r.data.shiftId, closedAt: r.data.closedAt } }
-      : r
+  return tryPaths<{ ok: true; shiftId: string; closedAt: string }>(["/staff/shift/close"], {
+    method: "POST",
+  }).then((r) =>
+    r.ok ? { ok: true, data: { shiftId: r.data.shiftId, closedAt: r.data.closedAt } } : r
   );
 }
 
@@ -188,7 +190,6 @@ export type CallStatus = "NEW" | "ACKED" | "DONE";
 export type PaymentStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
 export type CallType = "WAITER" | "HOOKAH" | "BILL" | "HELP";
 export type PaymentMethod = "CARD" | "CASH";
-export type StaffRoleExtended = "WAITER" | "HOOKAH" | "MANAGER" | "ADMIN";
 
 export type StaffOrder = {
   id: string;
@@ -273,6 +274,7 @@ export async function confirmPayment(id: string, amountCzk: number): Promise<Api
 
 // --------- ADMIN ----------
 export type AdminSummary = {
+  range: AdminRange;
   usersCount: number;
   ordersCount: number;
   callsCount: number;
@@ -308,6 +310,39 @@ export type AdminShiftItem = {
     staff?: { id: string; username: string; role: StaffRole };
   }>;
   guestSessions?: Array<{ id: string }>;
+};
+
+export type AdminShiftDetails = {
+  shift: {
+    id: string;
+    status: "OPEN" | "CLOSED";
+    openedAt: string;
+    closedAt: string | null;
+    openedByManager?: { id: string; username: string; role: StaffRole };
+    closedByManager?: { id: string; username: string; role: StaffRole } | null;
+    participants: Array<{
+      id: string;
+      staffId: string;
+      role: StaffRole;
+      joinedAt: string;
+      leftAt: string | null;
+      isActive: boolean;
+      staff?: { id: string; username: string; role: StaffRole };
+    }>;
+  };
+  stats: {
+    sessionsCount: number;
+    ordersCount: number;
+    callsCount: number;
+    ratingsCount: number;
+    paymentsCount: number;
+    revenueCzk: number;
+    avgOverall: number | null;
+    avgFood: number | null;
+    avgDrinks: number | null;
+    avgHookah: number | null;
+    registrationsCount: number;
+  };
 };
 
 export type AdminRatingItem = {
@@ -346,37 +381,48 @@ export type AdminStaffPerformanceItem = {
   confirmedPaymentsSumCzk: number;
 };
 
-export async function getAdminSummary(): Promise<ApiResult<{ summary: AdminSummary }>> {
+export async function getAdminSummary(range: AdminRange = "all"): Promise<ApiResult<{ summary: AdminSummary }>> {
   return tryPaths<{ ok: true; summary: AdminSummary }>(
-    ["/staff/admin/summary"],
+    [withQuery("/staff/admin/summary", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { summary: r.data.summary } } : r));
 }
 
-export async function getAdminShifts(): Promise<ApiResult<{ shifts: AdminShiftItem[] }>> {
+export async function getAdminShifts(range: AdminRange = "all"): Promise<ApiResult<{ shifts: AdminShiftItem[] }>> {
   return tryPaths<{ ok: true; shifts: AdminShiftItem[] }>(
-    ["/staff/admin/shifts"],
+    [withQuery("/staff/admin/shifts", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { shifts: r.data.shifts } } : r));
 }
 
-export async function getAdminRatings(): Promise<ApiResult<{ ratings: AdminRatingItem[] }>> {
+export async function getAdminShiftDetails(id: string): Promise<ApiResult<AdminShiftDetails>> {
+  return tryPaths<{ ok: true; shift: AdminShiftDetails["shift"]; stats: AdminShiftDetails["stats"] }>(
+    [`/staff/admin/shifts/${id}`],
+    { method: "GET" }
+  ).then((r) =>
+    r.ok ? { ok: true, data: { shift: r.data.shift, stats: r.data.stats } } : r
+  );
+}
+
+export async function getAdminRatings(range: AdminRange = "all"): Promise<ApiResult<{ ratings: AdminRatingItem[] }>> {
   return tryPaths<{ ok: true; ratings: AdminRatingItem[] }>(
-    ["/staff/admin/ratings"],
+    [withQuery("/staff/admin/ratings", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { ratings: r.data.ratings } } : r));
 }
 
-export async function getAdminUsers(): Promise<ApiResult<{ users: AdminUserItem[] }>> {
+export async function getAdminUsers(range: AdminRange = "all"): Promise<ApiResult<{ users: AdminUserItem[] }>> {
   return tryPaths<{ ok: true; users: AdminUserItem[] }>(
-    ["/staff/admin/users"],
+    [withQuery("/staff/admin/users", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { users: r.data.users } } : r));
 }
 
-export async function getAdminStaffPerformance(): Promise<ApiResult<{ staff: AdminStaffPerformanceItem[] }>> {
+export async function getAdminStaffPerformance(
+  range: AdminRange = "all"
+): Promise<ApiResult<{ staff: AdminStaffPerformanceItem[] }>> {
   return tryPaths<{ ok: true; staff: AdminStaffPerformanceItem[] }>(
-    ["/staff/admin/staff-performance"],
+    [withQuery("/staff/admin/staff-performance", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { staff: r.data.staff } } : r));
 }

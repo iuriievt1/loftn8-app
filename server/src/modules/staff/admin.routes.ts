@@ -2,17 +2,51 @@ import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { requireStaffAuth, requireAdminOrManager } from "./staff.middleware";
+import { HttpError } from "../../utils/httpError";
 
 export const staffAdminRouter = Router();
 
 staffAdminRouter.use(requireStaffAuth);
 staffAdminRouter.use(requireAdminOrManager);
 
-// общий summary
+type RangeKey = "all" | "today" | "week" | "month";
+
+function getRangeKey(raw: unknown): RangeKey {
+  const v = String(raw ?? "all");
+  if (v === "today" || v === "week" || v === "month") return v;
+  return "all";
+}
+
+function getDateFromRange(range: RangeKey): Date | undefined {
+  const now = new Date();
+
+  if (range === "today") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  }
+
+  if (range === "week") {
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+
+  if (range === "month") {
+    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+
+  return undefined;
+}
+
+function dateWhere(field: string, from?: Date) {
+  if (!from) return {};
+  return { [field]: { gte: from } };
+}
+
+// summary
 staffAdminRouter.get(
   "/summary",
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
 
     const [
       usersCount,
@@ -25,25 +59,52 @@ staffAdminRouter.get(
       shiftsTotal,
       openShift,
     ] = await Promise.all([
-      prisma.user.count(),
+      prisma.user.count({
+        where: {
+          ...dateWhere("createdAt", from),
+          sessions: {
+            some: {
+              table: { venueId },
+            },
+          },
+        },
+      }),
       prisma.order.count({
-        where: { table: { venueId } },
+        where: {
+          ...dateWhere("createdAt", from),
+          table: { venueId },
+        },
       }),
       prisma.staffCall.count({
-        where: { table: { venueId } },
+        where: {
+          ...dateWhere("createdAt", from),
+          table: { venueId },
+        },
       }),
       prisma.rating.count({
-        where: { table: { venueId } },
+        where: {
+          ...dateWhere("createdAt", from),
+          table: { venueId },
+        },
       }),
       prisma.paymentConfirmation.count({
-        where: { venueId },
+        where: {
+          ...dateWhere("createdAt", from),
+          venueId,
+        },
       }),
       prisma.paymentConfirmation.aggregate({
-        where: { venueId },
+        where: {
+          ...dateWhere("createdAt", from),
+          venueId,
+        },
         _sum: { amountCzk: true },
       }),
       prisma.rating.aggregate({
-        where: { table: { venueId } },
+        where: {
+          ...dateWhere("createdAt", from),
+          table: { venueId },
+        },
         _avg: {
           overall: true,
           food: true,
@@ -52,7 +113,10 @@ staffAdminRouter.get(
         },
       }),
       prisma.shift.count({
-        where: { venueId },
+        where: {
+          venueId,
+          ...dateWhere("openedAt", from),
+        },
       }),
       prisma.shift.findFirst({
         where: { venueId, status: "OPEN" },
@@ -68,6 +132,7 @@ staffAdminRouter.get(
     res.json({
       ok: true,
       summary: {
+        range,
         usersCount,
         ordersCount,
         callsCount,
@@ -85,14 +150,19 @@ staffAdminRouter.get(
   })
 );
 
-// список смен
+// shifts list
 staffAdminRouter.get(
   "/shifts",
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
 
     const shifts = await prisma.shift.findMany({
-      where: { venueId },
+      where: {
+        venueId,
+        ...dateWhere("openedAt", from),
+      },
       orderBy: { openedAt: "desc" },
       include: {
         openedByManager: {
@@ -102,6 +172,7 @@ staffAdminRouter.get(
           select: { id: true, username: true, role: true },
         },
         participants: {
+          orderBy: { joinedAt: "asc" },
           select: {
             id: true,
             staffId: true,
@@ -124,7 +195,7 @@ staffAdminRouter.get(
   })
 );
 
-// детальная статистика по смене
+// shift detail
 staffAdminRouter.get(
   "/shifts/:id",
   asyncHandler(async (req, res) => {
@@ -141,6 +212,7 @@ staffAdminRouter.get(
           select: { id: true, username: true, role: true },
         },
         participants: {
+          orderBy: { joinedAt: "asc" },
           include: {
             staff: {
               select: { id: true, username: true, role: true },
@@ -151,7 +223,7 @@ staffAdminRouter.get(
     });
 
     if (!shift) {
-      return res.status(404).json({ message: "Shift not found" });
+      throw new HttpError(404, "SHIFT_NOT_FOUND", "Shift not found");
     }
 
     const [
@@ -163,7 +235,6 @@ staffAdminRouter.get(
       paymentSumAgg,
       avgRatings,
       registrationsCount,
-      staffStats,
     ] = await Promise.all([
       prisma.guestSession.count({
         where: { shiftId: shift.id },
@@ -210,14 +281,6 @@ staffAdminRouter.get(
           },
         },
       }),
-      prisma.shiftParticipant.findMany({
-        where: { shiftId: shift.id },
-        include: {
-          staff: {
-            select: { id: true, username: true, role: true },
-          },
-        },
-      }),
     ]);
 
     res.json({
@@ -235,20 +298,24 @@ staffAdminRouter.get(
         avgDrinks: avgRatings._avg.drinks ?? null,
         avgHookah: avgRatings._avg.hookah ?? null,
         registrationsCount,
-        staffStats,
       },
     });
   })
 );
 
-// ratings feed
+// ratings
 staffAdminRouter.get(
   "/ratings",
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
 
     const ratings = await prisma.rating.findMany({
-      where: { table: { venueId } },
+      where: {
+        ...dateWhere("createdAt", from),
+        table: { venueId },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         table: {
@@ -264,18 +331,30 @@ staffAdminRouter.get(
           },
         },
       },
-      take: 100,
+      take: 200,
     });
 
     res.json({ ok: true, ratings });
   })
 );
 
-// registrations / users
+// users
 staffAdminRouter.get(
   "/users",
   asyncHandler(async (req, res) => {
+    const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
+
     const users = await prisma.user.findMany({
+      where: {
+        ...dateWhere("createdAt", from),
+        sessions: {
+          some: {
+            table: { venueId },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -286,18 +365,20 @@ staffAdminRouter.get(
         privacyAcceptedAt: true,
         createdAt: true,
       },
-      take: 100,
+      take: 200,
     });
 
     res.json({ ok: true, users });
   })
 );
 
-// staff performance по venue
+// staff performance
 staffAdminRouter.get(
   "/staff-performance",
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
 
     const staff = await prisma.staffUser.findMany({
       where: { venueId, isActive: true },
@@ -307,24 +388,35 @@ staffAdminRouter.get(
         role: true,
         createdAt: true,
       },
+      orderBy: [{ role: "asc" }, { username: "asc" }],
     });
 
     const result = await Promise.all(
       staff.map(async (s) => {
         const [confirmedPayments, shiftEntries] = await Promise.all([
           prisma.paymentConfirmation.aggregate({
-            where: { venueId, staffId: s.id },
+            where: {
+              venueId,
+              staffId: s.id,
+              ...dateWhere("createdAt", from),
+            },
             _count: true,
             _sum: { amountCzk: true },
           }),
           prisma.shiftParticipant.count({
-            where: { staffId: s.id, shift: { venueId } },
+            where: {
+              staffId: s.id,
+              shift: {
+                venueId,
+                ...dateWhere("openedAt", from),
+              },
+            },
           }),
         ]);
 
         return {
           ...s,
-          shiftsJoined: shiftEntries,
+          shiftsJoined: confirmedPayments._count ? shiftEntries : shiftEntries,
           confirmedPaymentsCount: confirmedPayments._count,
           confirmedPaymentsSumCzk: confirmedPayments._sum.amountCzk ?? 0,
         };
