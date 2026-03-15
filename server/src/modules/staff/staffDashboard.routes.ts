@@ -17,7 +17,6 @@ import type {
 export const staffDashboardRouter = Router();
 staffDashboardRouter.use(requireStaffAuth);
 
-// ✅ fix: req.params.id can be string | undefined => normalize via schema
 const IdParamSchema = z.object({
   id: z.string().min(1),
 });
@@ -25,27 +24,26 @@ const IdParamSchema = z.object({
 function callTypesForRole(role: StaffRole): CallType[] {
   if (role === "WAITER") return ["WAITER", "BILL", "HELP"];
   if (role === "HOOKAH") return ["HOOKAH", "HELP"];
-  return ["WAITER", "HOOKAH", "BILL", "HELP"]; // MANAGER
+  return ["WAITER", "HOOKAH", "BILL", "HELP"];
 }
 
-/**
- * ✅ ВАЖНО: фильтруем заказы по MenuSection (а не по названиям категорий)
- * HOOKAH -> только HOOKAH
- * WAITER -> DISHES + DRINKS
- * MANAGER -> всё (null => без фильтра)
- */
 function orderSectionsForRole(role: StaffRole): MenuSection[] | null {
   if (role === "HOOKAH") return ["HOOKAH"];
   if (role === "WAITER") return ["DISHES", "DRINKS"];
   return null;
 }
 
-async function getVenueTableIds(venueId: number) {
-  const tables = await prisma.table.findMany({
-    where: { venueId },
-    select: { id: true },
+async function getActiveShiftOrThrow(venueId: number) {
+  const shift = await prisma.shift.findFirst({
+    where: { venueId, status: "OPEN" },
+    orderBy: { openedAt: "desc" },
   });
-  return tables.map((t) => t.id);
+
+  if (!shift) {
+    throw new HttpError(409, "SHIFT_NOT_OPEN", "No active shift");
+  }
+
+  return shift;
 }
 
 // summary
@@ -56,10 +54,14 @@ staffDashboardRouter.get(
     const role = req.staff!.role;
     const types = callTypesForRole(role);
 
-    const tableIds = await getVenueTableIds(venueId);
+    const shift = await getActiveShiftOrThrow(venueId);
     const sections = orderSectionsForRole(role);
 
-    const ordersWhere: any = { status: "NEW", tableId: { in: tableIds } };
+    const ordersWhere: any = {
+      status: "NEW",
+      session: { shiftId: shift.id },
+    };
+
     if (sections) {
       ordersWhere.items = {
         some: {
@@ -71,14 +73,32 @@ staffDashboardRouter.get(
     const [newOrders, newCalls, pendingPayments] = await Promise.all([
       prisma.order.count({ where: ordersWhere }),
       prisma.staffCall.count({
-        where: { status: "NEW", type: { in: types }, tableId: { in: tableIds } },
+        where: {
+          status: "NEW",
+          type: { in: types },
+          session: { shiftId: shift.id },
+        },
       }),
       role === "HOOKAH"
         ? Promise.resolve(0)
-        : prisma.paymentRequest.count({ where: { status: "PENDING", tableId: { in: tableIds } } }),
+        : prisma.paymentRequest.count({
+            where: {
+              status: "PENDING",
+              session: { shiftId: shift.id },
+            },
+          }),
     ]);
 
-    res.json({ ok: true, newOrders, newCalls, pendingPayments });
+    res.json({
+      ok: true,
+      shift: {
+        id: shift.id,
+        openedAt: shift.openedAt,
+      },
+      newOrders,
+      newCalls,
+      pendingPayments,
+    });
   })
 );
 
@@ -90,10 +110,14 @@ staffDashboardRouter.get(
     const role = req.staff!.role;
     const status = (req.query.status as OrderStatus | undefined) ?? "NEW";
 
-    const tableIds = await getVenueTableIds(venueId);
+    const shift = await getActiveShiftOrThrow(venueId);
     const sections = orderSectionsForRole(role);
 
-    const where: any = { status, tableId: { in: tableIds } };
+    const where: any = {
+      status,
+      session: { shiftId: shift.id },
+    };
+
     if (sections) {
       where.items = {
         some: {
@@ -135,6 +159,7 @@ staffDashboardRouter.patch(
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
     const role = req.staff!.role;
+    const shift = await getActiveShiftOrThrow(venueId);
 
     const { id } = IdParamSchema.parse(req.params);
     const { status } = req.body as any;
@@ -146,6 +171,7 @@ staffDashboardRouter.patch(
       select: {
         id: true,
         tableId: true,
+        session: { select: { shiftId: true } },
         items: {
           select: {
             menuItem: { select: { category: { select: { section: true } } } },
@@ -153,13 +179,9 @@ staffDashboardRouter.patch(
         },
       },
     });
-    if (!order) throw new HttpError(404, "ORDER_NOT_FOUND", "Order not found");
 
-    const okTable = await prisma.table.findFirst({
-      where: { id: order.tableId, venueId },
-      select: { id: true },
-    });
-    if (!okTable) throw new HttpError(404, "ORDER_NOT_FOUND", "Order not found");
+    if (!order) throw new HttpError(404, "ORDER_NOT_FOUND", "Order not found");
+    if (order.session?.shiftId !== shift.id) throw new HttpError(404, "ORDER_NOT_FOUND", "Order not found");
 
     if (sections) {
       const allowed = order.items.some((it) => sections.includes(it.menuItem.category.section));
@@ -184,10 +206,14 @@ staffDashboardRouter.get(
     const status = (req.query.status as CallStatus | undefined) ?? "NEW";
     const types = callTypesForRole(role);
 
-    const tableIds = await getVenueTableIds(venueId);
+    const shift = await getActiveShiftOrThrow(venueId);
 
     const calls = await prisma.staffCall.findMany({
-      where: { status, type: { in: types }, tableId: { in: tableIds } },
+      where: {
+        status,
+        type: { in: types },
+        session: { shiftId: shift.id },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         table: { select: { code: true, label: true } },
@@ -199,7 +225,9 @@ staffDashboardRouter.get(
   })
 );
 
-const UpdateCallStatusSchema = z.object({ status: z.enum(["NEW", "ACKED", "DONE"]) });
+const UpdateCallStatusSchema = z.object({
+  status: z.enum(["NEW", "ACKED", "DONE"]),
+});
 
 staffDashboardRouter.patch(
   "/calls/:id/status",
@@ -207,6 +235,7 @@ staffDashboardRouter.patch(
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
     const role = req.staff!.role;
+    const shift = await getActiveShiftOrThrow(venueId);
 
     const { id } = IdParamSchema.parse(req.params);
     const { status } = req.body as any;
@@ -215,19 +244,16 @@ staffDashboardRouter.patch(
 
     const call = await prisma.staffCall.findUnique({
       where: { id },
-      select: { id: true, tableId: true, type: true },
+      select: {
+        id: true,
+        type: true,
+        session: { select: { shiftId: true } },
+      },
     });
+
     if (!call) throw new HttpError(404, "CALL_NOT_FOUND", "Call not found");
-
-    const okTable = await prisma.table.findFirst({
-      where: { id: call.tableId, venueId },
-      select: { id: true },
-    });
-    if (!okTable) throw new HttpError(404, "CALL_NOT_FOUND", "Call not found");
-
-    if (!allowedTypes.includes(call.type)) {
-      throw new HttpError(404, "CALL_NOT_FOUND", "Call not found");
-    }
+    if (call.session?.shiftId !== shift.id) throw new HttpError(404, "CALL_NOT_FOUND", "Call not found");
+    if (!allowedTypes.includes(call.type)) throw new HttpError(404, "CALL_NOT_FOUND", "Call not found");
 
     await prisma.staffCall.update({
       where: { id: call.id },
@@ -250,10 +276,13 @@ staffDashboardRouter.get(
     }
 
     const status = (req.query.status as PaymentStatus | undefined) ?? "PENDING";
-    const tableIds = await getVenueTableIds(venueId);
+    const shift = await getActiveShiftOrThrow(venueId);
 
     const payments = await prisma.paymentRequest.findMany({
-      where: { status, tableId: { in: tableIds } },
+      where: {
+        status,
+        session: { shiftId: shift.id },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         table: { select: { code: true, label: true } },
@@ -275,6 +304,7 @@ staffDashboardRouter.post(
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
     const role = req.staff!.role;
+    const shift = await getActiveShiftOrThrow(venueId);
 
     if (role === "HOOKAH") {
       throw new HttpError(403, "FORBIDDEN", "Hookah role cannot confirm payments");
@@ -282,35 +312,31 @@ staffDashboardRouter.post(
 
     const staffId = req.staff!.staffId;
     const { id } = IdParamSchema.parse(req.params);
-
     const { amountCzk } = req.body as any;
     const CASHBACK_PERCENT = 5;
 
     const result = await prisma.$transaction(async (tx) => {
       const pr = await tx.paymentRequest.findUnique({
         where: { id },
-        select: { id: true, status: true, tableId: true, sessionId: true, method: true },
+        select: {
+          id: true,
+          status: true,
+          sessionId: true,
+          method: true,
+          session: { select: { shiftId: true, userId: true } },
+        },
       });
+
       if (!pr) throw new HttpError(404, "PAYMENT_NOT_FOUND", "Payment request not found");
+      if (pr.session?.shiftId !== shift.id) throw new HttpError(404, "PAYMENT_NOT_FOUND", "Payment request not found");
 
       if (pr.status !== "PENDING") {
         throw new HttpError(409, "PAYMENT_NOT_PENDING", "Payment request is not pending");
       }
 
-      const okTable = await tx.table.findFirst({
-        where: { id: pr.tableId, venueId },
-        select: { id: true },
-      });
-      if (!okTable) throw new HttpError(404, "PAYMENT_NOT_FOUND", "Payment request not found");
-
       const updated = await tx.paymentRequest.update({
         where: { id: pr.id },
         data: { status: "CONFIRMED", confirmedAt: new Date(), confirmedByStaffId: staffId },
-      });
-
-      const sess = await tx.guestSession.findUnique({
-        where: { id: pr.sessionId },
-        select: { userId: true },
       });
 
       const confirmation = await tx.paymentConfirmation.upsert({
@@ -320,14 +346,14 @@ staffDashboardRouter.post(
           paymentRequestId: pr.id,
           venueId,
           staffId,
-          userId: sess?.userId ?? null,
+          userId: pr.session?.userId ?? null,
           method: pr.method,
           amountCzk,
         },
       });
 
       let loyalty = null;
-      const userId = sess?.userId ?? null;
+      const userId = pr.session?.userId ?? null;
 
       if (userId) {
         const cashbackCzk = Math.floor((amountCzk * CASHBACK_PERCENT) / 100);

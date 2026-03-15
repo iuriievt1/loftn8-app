@@ -236,4 +236,4 @@ authRouter.post(
     clearCookie(res, "gsid");
     res.json({ ok: true });
   })
-);
+); 

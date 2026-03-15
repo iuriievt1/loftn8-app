@@ -10,10 +10,15 @@ import { guestSessionAuth } from "../../middleware/auth/guestSession";
 
 export const guestRouter = Router();
 
-/* ---------------- SESSION ---------------- */
-
 const CreateSessionSchema = z.object({
   tableCode: z.string().min(1),
+});
+
+const CreateRatingSchema = z.object({
+  food: z.number().min(1).max(5).optional(),
+  drinks: z.number().min(1).max(5).optional(),
+  hookah: z.number().min(1).max(5).optional(),
+  comment: z.string().max(500).optional(),
 });
 
 function setCookie(res: any, name: string, value: string, maxAgeSeconds: number) {
@@ -37,15 +42,30 @@ guestRouter.post(
 
     const table = await prisma.table.findUnique({
       where: { code: tableCode },
+      select: { id: true, code: true, label: true, venueId: true },
     });
 
     if (!table) {
       throw new HttpError(404, "TABLE_NOT_FOUND", "Table not found");
     }
 
+    const shift = await prisma.shift.findFirst({
+      where: {
+        venueId: table.venueId,
+        status: "OPEN",
+      },
+      orderBy: { openedAt: "desc" },
+    });
+
+    if (!shift) {
+      throw new HttpError(409, "SHIFT_NOT_OPEN", "Venue shift is not open");
+    }
+
     const session = await prisma.guestSession.create({
-      data: { tableId: table.id },
-      include: { table: true },
+      data: {
+        tableId: table.id,
+        shiftId: shift.id,
+      },
     });
 
     const token = jwt.sign(
@@ -61,17 +81,19 @@ guestRouter.post(
       session: {
         id: session.id,
         table: {
-          id: session.table.id,
-          code: session.table.code,
-          label: session.table.label,
+          id: table.id,
+          code: table.code,
+          label: table.label,
+        },
+        shift: {
+          id: shift.id,
+          openedAt: shift.openedAt,
         },
         startedAt: session.startedAt,
       },
     });
   })
 );
-
-/* ---------------- GET SESSION ---------------- */
 
 guestRouter.get(
   "/me",
@@ -85,15 +107,22 @@ guestRouter.get(
         table: {
           select: { id: true, code: true, label: true },
         },
+        shift: {
+          select: { id: true, status: true, openedAt: true, closedAt: true },
+        },
       },
     });
 
     if (!session) {
-      throw new HttpError(
-        401,
-        "GUEST_SESSION_INVALID",
-        "Guest session is invalid"
-      );
+      throw new HttpError(401, "GUEST_SESSION_INVALID", "Guest session is invalid");
+    }
+
+    if (session.endedAt) {
+      throw new HttpError(401, "GUEST_SESSION_ENDED", "Guest session ended");
+    }
+
+    if (!session.shift || session.shift.status !== "OPEN") {
+      throw new HttpError(401, "SHIFT_CLOSED", "Shift is closed");
     }
 
     res.json({
@@ -101,20 +130,12 @@ guestRouter.get(
       session: {
         id: session.id,
         table: session.table,
+        shift: session.shift,
         startedAt: session.startedAt,
       },
     });
   })
 );
-
-/* ---------------- RATING ---------------- */
-
-const CreateRatingSchema = z.object({
-  food: z.number().min(1).max(5).optional(),
-  drinks: z.number().min(1).max(5).optional(),
-  hookah: z.number().min(1).max(5).optional(),
-  comment: z.string().max(500).optional(),
-});
 
 guestRouter.post(
   "/rating",
@@ -126,15 +147,22 @@ guestRouter.post(
 
     const session = await prisma.guestSession.findUnique({
       where: { id: s.id },
+      include: { shift: true },
     });
 
     if (!session) {
       throw new HttpError(401, "SESSION_INVALID", "Session invalid");
     }
 
-    const values = [food, drinks, hookah].filter(
-      (v) => typeof v === "number"
-    ) as number[];
+    if (session.endedAt) {
+      throw new HttpError(401, "SESSION_ENDED", "Session ended");
+    }
+
+    if (!session.shift || session.shift.status !== "OPEN") {
+      throw new HttpError(401, "SHIFT_CLOSED", "Shift is closed");
+    }
+
+    const values = [food, drinks, hookah].filter((v) => typeof v === "number") as number[];
 
     const overall =
       values.length > 0
@@ -155,4 +183,4 @@ guestRouter.post(
 
     res.json({ ok: true });
   })
-); 
+);

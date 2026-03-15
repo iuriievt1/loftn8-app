@@ -186,4 +186,4 @@ export async function confirmPayment(id: string, amountCzk: number): Promise<Api
     [`/staff/dashboard/payments/${id}/confirm`, `/staff/payments/${id}/confirm`],
     { method: "POST", body: JSON.stringify({ amountCzk }) }
   );
-}
+} 

@@ -39,4 +39,4 @@ ratingsRouter.post(
 
     res.json({ ok: true, rating });
   })
-);
+); 
