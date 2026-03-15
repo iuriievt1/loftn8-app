@@ -22,11 +22,8 @@ export function setStaffCookie(res: any, token: string, maxAgeSeconds: number) {
 
   res.cookie(STAFF_COOKIE_NAME, token, {
     httpOnly: true,
-
-    // ✅ важно для Vercel(front) + Render(api)
     sameSite: isProd ? "none" : "lax",
     secure: isProd,
-
     domain: env.COOKIE_DOMAIN || undefined,
     maxAge: maxAgeSeconds * 1000,
     path: "/",
@@ -71,4 +68,6 @@ export function requireStaffRole(roles: StaffRole[]): RequestHandler {
     if (!roles.includes(req.staff.role)) return next(new HttpError(403, "STAFF_FORBIDDEN", "Forbidden"));
     next();
   };
-} 
+}
+
+export const requireManagerOnly = requireStaffRole(["MANAGER"]);
