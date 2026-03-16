@@ -13,7 +13,7 @@ import {
 } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
 import { attachStaffRealtime } from "@/lib/staffRealtime";
-import { ensurePushSubscribed } from "@/lib/staffPush";
+import { ensurePushSubscribed, rebindPushIfPossible } from "@/lib/staffPush";
 import { armAudio } from "@/lib/staffAlerts";
 import { useStaffSession } from "@/providers/staffSession";
 import { useToast } from "@/providers/toast";
@@ -104,7 +104,12 @@ export default function StaffSummaryPage() {
   }, [tick, isAdmin]);
 
   useEffect(() => {
-    void loadAll({ silent: false });
+    async function boot() {
+      await loadAll({ silent: false });
+      await rebindPushIfPossible();
+    }
+
+    void boot();
   }, []);
 
   const onEnableNotifications = async () => {
@@ -114,7 +119,11 @@ export default function StaffSummaryPage() {
     const r = await ensurePushSubscribed();
     if (!r.ok) {
       setErr(r.error || "Не удалось включить уведомления");
-      push({ kind: "error", title: "Ошибка", message: r.error || "Не удалось включить уведомления" });
+      push({
+        kind: "error",
+        title: "Ошибка",
+        message: r.error || "Не удалось включить уведомления",
+      });
       return;
     }
 
@@ -279,4 +288,4 @@ export default function StaffSummaryPage() {
       </div>
     </main>
   );
-} 
+}

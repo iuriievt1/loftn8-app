@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { staffLogin } from "@/lib/staffApi";
 import { useStaffSession } from "@/providers/staffSession";
+import { rebindPushIfPossible } from "@/lib/staffPush";
 
 export default function StaffLoginPage() {
   const router = useRouter();
@@ -30,6 +31,9 @@ export default function StaffLoginPage() {
     const staff = r.data.staff;
     setStaff(staff);
 
+    // ✅ если подписка уже существует в браузере — заново привязываем к staff
+    await rebindPushIfPossible();
+
     if (staff.role === "ADMIN") {
       router.replace("/staff/admin");
       return;
@@ -49,9 +53,7 @@ export default function StaffLoginPage() {
         <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
           <div className="text-xs tracking-[0.22em] text-white/45">LOFT №8</div>
           <h1 className="mt-2 text-2xl font-semibold">Вход в систему</h1>
-          <p className="mt-1 text-sm text-white/60">
-            Официант, кальянщик, менеджер
-          </p>
+          <p className="mt-1 text-sm text-white/60">Официант, кальянщик, менеджер</p>
 
           {err ? (
             <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">

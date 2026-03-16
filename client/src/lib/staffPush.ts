@@ -14,9 +14,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<ApiResult<
   let json: any = null;
   try {
     json = text ? JSON.parse(text) : null;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   if (!res.ok) {
     const msg = (json && (json.message || json.error)) || `HTTP_${res.status}`;
@@ -47,17 +45,6 @@ export async function subscribePush(sub: PushSubscription): Promise<ApiResult<{ 
     body: JSON.stringify({
       endpoint: json.endpoint,
       keys: json.keys,
-    }),
-  });
-}
-
-export async function unsubscribePush(sub: PushSubscription): Promise<ApiResult<{ ok: true }>> {
-  const json = sub.toJSON() as any;
-
-  return apiFetch<{ ok: true }>("/staff/push/unsubscribe", {
-    method: "POST",
-    body: JSON.stringify({
-      endpoint: json.endpoint,
     }),
   });
 }
@@ -102,7 +89,10 @@ export async function rebindPushIfPossible(): Promise<void> {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
 
-    const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+    const reg =
+      (await navigator.serviceWorker.getRegistration("/sw.js")) ||
+      (await navigator.serviceWorker.getRegistration());
+
     if (!reg) return;
 
     const sub = await reg.pushManager.getSubscription();

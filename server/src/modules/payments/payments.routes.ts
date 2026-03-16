@@ -6,12 +6,48 @@ import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
 import { requireUser } from "../../middleware/auth/requireUser";
 import { notifyPaymentRequested } from "../staff/push.service";
+import { HttpError } from "../../utils/httpError";
 
 export const paymentsRouter = Router();
 
 const RequestPaymentSchema = z.object({
   method: z.enum(["CARD", "CASH"]),
 });
+
+async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
+  const session = await prisma.guestSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      shiftId: true,
+      table: { select: { venueId: true } },
+    },
+  });
+
+  if (!session) throw new HttpError(401, "SESSION_INVALID", "Session invalid");
+  if (session.shiftId) return session;
+
+  const activeShift = await prisma.shift.findFirst({
+    where: {
+      venueId: session.table.venueId,
+      status: "OPEN",
+    },
+    orderBy: { openedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!activeShift) return session;
+
+  await prisma.guestSession.update({
+    where: { id: session.id },
+    data: { shiftId: activeShift.id },
+  });
+
+  return {
+    ...session,
+    shiftId: activeShift.id,
+  };
+}
 
 paymentsRouter.post(
   "/request",
@@ -20,6 +56,8 @@ paymentsRouter.post(
   validate(RequestPaymentSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
+    await attachSessionToActiveShiftIfNeeded(session.id);
+
     const body = req.body as z.infer<typeof RequestPaymentSchema>;
 
     const payment = await prisma.paymentRequest.create({
@@ -38,4 +76,4 @@ paymentsRouter.post(
 
     res.json({ ok: true, payment });
   })
-); 
+);

@@ -4,34 +4,39 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStaffSession } from "@/providers/staffSession";
 import { getStaffMe } from "@/lib/staffApi";
+import { rebindPushIfPossible } from "@/lib/staffPush";
 
 export function StaffGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { staff, clear, setStaff } = useStaffSession();
+  const { clear, setStaff } = useStaffSession();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  async function run() {
-    const r = await getStaffMe();
+    async function run() {
+      const r = await getStaffMe();
 
-    if (!r.ok) {
-      clear();
-      router.replace("/staff/login");
-      return;
+      if (!r.ok) {
+        clear();
+        router.replace("/staff/login");
+        return;
+      }
+
+      setStaff(r.data.staff);
+
+      // ✅ если подписка уже есть в браузере — пересохраняем её на backend
+      await rebindPushIfPossible();
+
+      if (!cancelled) setReady(true);
     }
 
-    setStaff(r.data.staff);
+    void run();
 
-    if (!cancelled) setReady(true);
-  }
-
-  void run();
-  return () => {
-    cancelled = true;
-  };
-}, [router, clear, setStaff]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router, clear, setStaff]);
 
   if (!ready) {
     return (
@@ -45,4 +50,4 @@ export function StaffGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-} 
+}

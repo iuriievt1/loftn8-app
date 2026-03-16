@@ -20,8 +20,43 @@ const CreateOrderSchema = z.object({
         comment: z.string().max(300).optional(),
       })
     )
-    .min(1), 
+    .min(1),
 });
+
+async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
+  const session = await prisma.guestSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      shiftId: true,
+      table: { select: { venueId: true } },
+    },
+  });
+
+  if (!session) throw new HttpError(401, "SESSION_INVALID", "Session invalid");
+  if (session.shiftId) return session;
+
+  const activeShift = await prisma.shift.findFirst({
+    where: {
+      venueId: session.table.venueId,
+      status: "OPEN",
+    },
+    orderBy: { openedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!activeShift) return session;
+
+  await prisma.guestSession.update({
+    where: { id: session.id },
+    data: { shiftId: activeShift.id },
+  });
+
+  return {
+    ...session,
+    shiftId: activeShift.id,
+  };
+}
 
 ordersRouter.post(
   "/",
@@ -30,7 +65,9 @@ ordersRouter.post(
   validate(CreateOrderSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
-    const user = req.user as { id: string }; // ✅ TS fix
+    const user = req.user as { id: string };
+
+    await attachSessionToActiveShiftIfNeeded(session.id);
 
     const body = req.body as z.infer<typeof CreateOrderSchema>;
     const menuItemIds = body.items.map((i) => i.menuItemId);
@@ -49,7 +86,7 @@ ordersRouter.post(
       data: {
         sessionId: session.id,
         tableId: session.tableId,
-        userId: user.id, // ✅ теперь не красным
+        userId: user.id,
         comment: body.comment,
         items: {
           create: body.items.map((it) => ({
@@ -86,4 +123,4 @@ ordersRouter.get(
     });
     res.json({ ok: true, orders });
   })
-); 
+);

@@ -5,6 +5,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
 import { notifyCallCreated } from "../staff/push.service";
+import { HttpError } from "../../utils/httpError";
 
 export const callsRouter = Router();
 
@@ -13,12 +14,49 @@ const CreateCallSchema = z.object({
   message: z.string().max(500).optional(),
 });
 
+async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
+  const session = await prisma.guestSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      shiftId: true,
+      table: { select: { venueId: true } },
+    },
+  });
+
+  if (!session) throw new HttpError(401, "SESSION_INVALID", "Session invalid");
+  if (session.shiftId) return session;
+
+  const activeShift = await prisma.shift.findFirst({
+    where: {
+      venueId: session.table.venueId,
+      status: "OPEN",
+    },
+    orderBy: { openedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!activeShift) return session;
+
+  await prisma.guestSession.update({
+    where: { id: session.id },
+    data: { shiftId: activeShift.id },
+  });
+
+  return {
+    ...session,
+    shiftId: activeShift.id,
+  };
+}
+
 callsRouter.post(
   "/",
   guestSessionAuth,
   validate(CreateCallSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
+    await attachSessionToActiveShiftIfNeeded(session.id);
+
     const body = req.body as z.infer<typeof CreateCallSchema>;
 
     const call = await prisma.staffCall.create({
@@ -30,7 +68,6 @@ callsRouter.post(
       },
     });
 
-    // ✅ PUSH
     try {
       await notifyCallCreated(call.id);
     } catch (e) {
