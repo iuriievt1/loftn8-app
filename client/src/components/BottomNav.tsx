@@ -118,16 +118,16 @@ export function BottomNav() {
   const nav = useMemo(() => {
     if (!loading && !isAuthed) {
       return [
-        { href: "/call", label: "Персонал", icon: "call" as const },
-        { href: "/auth", label: "Войти", icon: "profile" as const },
+        { href: "/call", label: "Staff", icon: "call" as const },
+        { href: "/auth", label: "Sign in", icon: "profile" as const },
       ];
     }
 
     return [
-      { href: "/menu", label: "Меню", icon: "menu" as const },
-      { href: "/cart", label: "Корзина", icon: "cart" as const, badge: count || undefined },
-      { href: "/call", label: "Персонал", icon: "call" as const },
-      { href: "/profile", label: "Профиль", icon: "profile" as const },
+      { href: "/menu", label: "Menu", icon: "menu" as const },
+      { href: "/cart", label: "Cart", icon: "cart" as const, badge: count || undefined },
+      { href: "/call", label: "Staff", icon: "call" as const },
+      { href: "/profile", label: "Profile", icon: "profile" as const },
     ];
   }, [loading, isAuthed, count]);
 
