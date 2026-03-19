@@ -15,7 +15,7 @@ self.addEventListener("push", (event) => {
     ts: null,
   };
 
-  try { 
+  try {  
     payload = event.data ? event.data.json() : payload;
   } catch {}
 

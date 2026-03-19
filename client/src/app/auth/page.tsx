@@ -55,7 +55,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (me?.authenticated) router.replace("/table");
+    if (me?.authenticated) router.replace("/menu");
   }, [loading, me, router]);
 
   const canSend =
@@ -110,7 +110,7 @@ export default function AuthPage() {
 
       await refresh();
       push({ kind: "success", title: "Done", message: "You are signed in." });
-      router.replace("/table");
+      router.replace("/menu");
     } catch (e: any) {
       const msg = humanError(e?.message ?? "Failed");
       setErr(msg);
@@ -133,7 +133,7 @@ export default function AuthPage() {
 
   const doAnonContinue = () => {
     setShowAnonWarn(false);
-    router.replace("/table?anon=1");
+    router.replace("/menu");
   };
 
   return (
