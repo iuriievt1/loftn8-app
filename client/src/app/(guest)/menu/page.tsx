@@ -23,8 +23,10 @@ function Pill({
       type="button"
       onClick={onClick}
       className={[
-        "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-        active ? "border-white/10 bg-white text-black" : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
+        "whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition",
+        active
+          ? "border-white/10 bg-white text-black"
+          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
       ].join(" ")}
     >
       {children}
@@ -43,49 +45,51 @@ function Qty({
   onMinus: () => void;
   onPlus: () => void;
 }) {
-  if (qty === 0) {
-    return (
-      <button
-        type="button"
-        disabled={disabled}
-        className={[
-          "rounded-2xl px-4 py-2 text-sm font-semibold",
-          disabled ? "bg-white/30 text-black/60" : "bg-white text-black",
-        ].join(" ")}
-        onClick={onPlus}
-      >
-        Add
-      </button>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-2 py-1">
-      <button
-        type="button"
-        disabled={disabled}
-        className={[
-          "h-9 w-9 rounded-xl border border-white/10 bg-black/30 text-white",
-          disabled ? "opacity-40" : "",
-        ].join(" ")}
-        onClick={onMinus}
-        aria-label="Decrease"
-      >
-        −
-      </button>
-      <div className="w-6 text-center text-sm font-semibold text-white">{qty}</div>
-      <button
-        type="button"
-        disabled={disabled}
-        className={[
-          "h-9 w-9 rounded-xl border border-white/10 bg-black/30 text-white",
-          disabled ? "opacity-40" : "",
-        ].join(" ")}
-        onClick={onPlus}
-        aria-label="Increase"
-      >
-        +
-      </button>
+    <div className="w-[112px] shrink-0">
+      {qty === 0 ? (
+        <button
+          type="button"
+          disabled={disabled}
+          className={[
+            "h-10 w-full rounded-2xl px-4 text-sm font-semibold transition",
+            disabled ? "bg-white/30 text-black/60" : "bg-white text-black hover:bg-white/90",
+          ].join(" ")}
+          onClick={onPlus}
+        >
+          Add
+        </button>
+      ) : (
+        <div className="flex h-10 items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-1.5">
+          <button
+            type="button"
+            disabled={disabled}
+            className={[
+              "grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-black/30 text-base text-white transition",
+              disabled ? "opacity-40" : "hover:bg-black/40",
+            ].join(" ")}
+            onClick={onMinus}
+            aria-label="Decrease"
+          >
+            −
+          </button>
+
+          <div className="min-w-[20px] text-center text-sm font-semibold text-white">{qty}</div>
+
+          <button
+            type="button"
+            disabled={disabled}
+            className={[
+              "grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-black/30 text-base text-white transition",
+              disabled ? "opacity-40" : "hover:bg-black/40",
+            ].join(" ")}
+            onClick={onPlus}
+            aria-label="Increase"
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -163,15 +167,6 @@ function MenuPage() {
   }, []);
 
   const cats = useMemo(() => data?.categories ?? [], [data]);
-
-  const catsBySection = useMemo(() => {
-    const map = new Map<MenuSection, MenuCategory[]>();
-    for (const c of cats) {
-      const sec = c.section as MenuSection;
-      map.set(sec, [...(map.get(sec) ?? []), c]);
-    }
-    return map;
-  }, [cats]);
 
   const groupsBySection = useMemo(() => {
     const map = new Map<MenuSection, CatGroup[]>();
@@ -318,7 +313,10 @@ function MenuPage() {
                 >
                   Staff
                 </Link>
-                <Link className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black" href="/auth">
+                <Link
+                  className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black"
+                  href="/auth"
+                >
                   Sign in / Register
                 </Link>
               </div>
@@ -384,10 +382,7 @@ function MenuPage() {
                         setActiveCatId(Number.isFinite(next) ? next : null);
                         setQ("");
                       }}
-                      className={[
-                        "w-full appearance-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3 pr-10",
-                        "text-sm text-white outline-none",
-                      ].join(" ")}
+                      className="w-full appearance-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3 pr-10 text-sm text-white outline-none"
                     >
                       {activeGroup.cats.map((c) => {
                         const { sub } = splitCatName(c.name);
@@ -425,8 +420,8 @@ function MenuPage() {
                     key={i.id}
                     className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-[92px] w-[92px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                    <div className="flex gap-3">
+                      <div className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                         {i.imageUrl ? (
                           <img
                             src={i.imageUrl}
@@ -439,25 +434,36 @@ function MenuPage() {
                           />
                         ) : null}
 
-                        <div className="grid h-full w-full place-items-center text-[10px] font-semibold tracking-[0.18em] text-white/45">
-                          LOFT №8
-                        </div>
+                        {!i.imageUrl ? (
+                          <div className="grid h-full w-full place-items-center text-[10px] font-semibold tracking-[0.18em] text-white/45">
+                            LOFT №8
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="min-w-0 flex-1">
                         {meta ? <div className="text-[11px] text-white/55">{meta}</div> : null}
 
-                        <div className="text-sm font-semibold text-white">{i.name}</div>
+                        <div className="line-clamp-2 text-[15px] font-semibold leading-5 text-white">
+                          {i.name}
+                        </div>
 
                         {i.description ? (
-                          <div className="mt-1 text-xs leading-snug text-white/65">{i.description}</div>
+                          <div className="mt-1 line-clamp-3 text-xs leading-5 text-white/65">
+                            {i.description}
+                          </div>
                         ) : null}
 
-                        <div className="mt-2 text-sm font-semibold text-white">{i.priceCzk} Kč</div>
-                      </div>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="text-base font-semibold text-white">{i.priceCzk} Kč</div>
 
-                      <div className="shrink-0">
-                        <Qty qty={qty} disabled={!canOrder} onMinus={() => onMinus(i)} onPlus={() => onPlus(i)} />
+                          <Qty
+                            qty={qty}
+                            disabled={!canOrder}
+                            onMinus={() => onMinus(i)}
+                            onPlus={() => onPlus(i)}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

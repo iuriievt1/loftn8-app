@@ -28,20 +28,30 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/6 p-4 shadow-2xl backdrop-blur">
-      <div className="text-xs text-white/60">{title}</div>
+    <div className="rounded-[24px] border border-white/10 bg-white/6 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
+      <div className="text-xs text-white/55">{title}</div>
       <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-xs text-white/45">{hint}</div>
+      <div className="mt-2 text-xs text-white/40">{hint}</div>
     </div>
   );
 }
 
 const card =
-  "rounded-[28px] border border-white/10 bg-white/6 p-4 shadow-2xl backdrop-blur-xl";
+  "rounded-[28px] border border-white/10 bg-white/6 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl";
 const btn =
   "rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50";
+const btnPrimary =
+  "rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50";
 const btnGhost =
   "rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white";
+
+function roleLabel(role?: string) {
+  if (role === "WAITER") return "Официант";
+  if (role === "HOOKAH") return "Кальянщик";
+  if (role === "MANAGER") return "Менеджер";
+  if (role === "ADMIN") return "Администратор";
+  return role ?? "Staff";
+}
 
 export default function StaffSummaryPage() {
   const { staff } = useStaffSession();
@@ -108,8 +118,8 @@ export default function StaffSummaryPage() {
       await loadAll({ silent: false });
       await rebindPushIfPossible();
     }
-
     void boot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onEnableNotifications = async () => {
@@ -198,7 +208,7 @@ export default function StaffSummaryPage() {
             <div className="mt-4">
               <Link
                 href="/staff/admin"
-                className="inline-flex rounded-2xl border border-white/10 bg-white/15 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20"
+                className="inline-flex rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black"
               >
                 Открыть админ-панель
               </Link>
@@ -214,14 +224,16 @@ export default function StaffSummaryPage() {
       <div className="mx-auto max-w-md px-4 py-6">
         <div className={card}>
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xl font-semibold">Сводка</div>
+            <div className="min-w-0">
+              <div className="text-xl font-semibold">Сводка смены</div>
               <div className="mt-1 text-xs text-white/50">
-                Автообновление: {isRunning ? "включено" : "выключено"}
+                {roleLabel(staff?.role)} • автообновление: {isRunning ? "включено" : "выключено"}
                 {last ? ` • ${new Date(last).toLocaleTimeString()}` : ""}
               </div>
               <div className="mt-2 text-sm text-white/65">
-                {shift ? `Смена открыта • ${new Date(shift.openedAt).toLocaleString()}` : "Смена сейчас не открыта"}
+                {shift
+                  ? `Смена открыта • ${new Date(shift.openedAt).toLocaleString()}`
+                  : "Смена сейчас не открыта"}
               </div>
             </div>
 
@@ -236,13 +248,13 @@ export default function StaffSummaryPage() {
             </button>
 
             {!shift && isManager ? (
-              <button className={btn} disabled={busy} onClick={onOpenShift}>
+              <button className={btnPrimary} disabled={busy} onClick={onOpenShift}>
                 Открыть смену
               </button>
             ) : null}
 
             {shift && !isInShift ? (
-              <button className={btn} disabled={busy} onClick={onJoinShift}>
+              <button className={btnPrimary} disabled={busy} onClick={onJoinShift}>
                 Войти в смену
               </button>
             ) : null}
@@ -257,10 +269,13 @@ export default function StaffSummaryPage() {
           {shift?.participants?.length ? (
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
               <div className="text-xs text-white/50">Кто сейчас в смене</div>
-              <div className="mt-2 space-y-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {shift.participants.map((p) => (
-                  <div key={p.id} className="text-sm text-white/85">
-                    {p.staff?.username ?? p.staffId} • {p.role}
+                  <div
+                    key={p.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85"
+                  >
+                    {p.staff?.username ?? p.staffId} • {roleLabel(p.role)}
                   </div>
                 ))}
               </div>
@@ -281,9 +296,9 @@ export default function StaffSummaryPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-3">
-          <StatCard title="Новые заказы" value={data?.newOrders ?? 0} hint="ждут принятия" />
-          <StatCard title="Вызовы" value={data?.newCalls ?? 0} hint="нужны действия" />
-          <StatCard title="Оплаты" value={data?.pendingPayments ?? 0} hint="ждут подтверждения" />
+          <StatCard title="Новые заказы" value={data?.newOrders ?? 0} hint="Принять" />
+          <StatCard title="Вызовы" value={data?.newCalls ?? 0} hint="Подойти" />
+          <StatCard title="Оплаты" value={data?.pendingPayments ?? 0} hint="Рассчитать" />
         </div>
       </div>
     </main>

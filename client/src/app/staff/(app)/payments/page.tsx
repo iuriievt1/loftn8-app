@@ -23,6 +23,8 @@ const card =
   "rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.45)]";
 const btn =
   "rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50";
+const btnPrimary =
+  "rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50";
 const btnGhost =
   "rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white";
 
@@ -93,7 +95,12 @@ export default function StaffPaymentsPage() {
       return;
     }
 
-    push({ kind: "success", title: "Оплата подтверждена", message: `${Math.floor(amount)} Kč` });
+    push({
+      kind: "success",
+      title: "Оплата подтверждена",
+      message: `${Math.floor(amount)} Kč`,
+    });
+
     await load({ silent: false });
   };
 
@@ -101,7 +108,7 @@ export default function StaffPaymentsPage() {
     <div>
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-xl font-semibold text-white">Оплаты</div>
             <div className="mt-1 text-xs text-white/50">
               Автообновление: {isRunning ? "включено" : "выключено"}
@@ -120,9 +127,9 @@ export default function StaffPaymentsPage() {
             <button
               key={s}
               className={[
-                "rounded-2xl border px-4 py-2 text-sm transition whitespace-nowrap",
+                "whitespace-nowrap rounded-2xl border px-4 py-2 text-sm transition",
                 s === status
-                  ? "border-white/20 bg-white/15 text-white"
+                  ? "border-white/20 bg-white text-black"
                   : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
               ].join(" ")}
               onClick={() => setStatus(s)}
@@ -166,7 +173,7 @@ export default function StaffPaymentsPage() {
 
               {p.status === "PENDING" ? (
                 <button
-                  className={btn}
+                  className={btnPrimary}
                   disabled={busyId === p.id}
                   onClick={() => void onConfirm(p.id)}
                 >

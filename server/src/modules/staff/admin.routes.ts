@@ -10,10 +10,17 @@ staffAdminRouter.use(requireStaffAuth);
 staffAdminRouter.use(requireAdminOrManager);
 
 type RangeKey = "all" | "today" | "week" | "month";
+type GuestFilter = "all" | "registered" | "anonymous";
 
 function getRangeKey(raw: unknown): RangeKey {
   const v = String(raw ?? "all");
   if (v === "today" || v === "week" || v === "month") return v;
+  return "all";
+}
+
+function getGuestFilter(raw: unknown): GuestFilter {
+  const v = String(raw ?? "all");
+  if (v === "registered" || v === "anonymous") return v;
   return "all";
 }
 
@@ -50,6 +57,9 @@ staffAdminRouter.get(
 
     const [
       usersCount,
+      guestSessionsCount,
+      registeredGuestSessionsCount,
+      anonymousGuestSessionsCount,
       ordersCount,
       callsCount,
       ratingsCount,
@@ -67,6 +77,26 @@ staffAdminRouter.get(
               table: { venueId },
             },
           },
+        },
+      }),
+      prisma.guestSession.count({
+        where: {
+          ...dateWhere("startedAt", from),
+          table: { venueId },
+        },
+      }),
+      prisma.guestSession.count({
+        where: {
+          ...dateWhere("startedAt", from),
+          table: { venueId },
+          userId: { not: null },
+        },
+      }),
+      prisma.guestSession.count({
+        where: {
+          ...dateWhere("startedAt", from),
+          table: { venueId },
+          userId: null,
         },
       }),
       prisma.order.count({
@@ -134,6 +164,9 @@ staffAdminRouter.get(
       summary: {
         range,
         usersCount,
+        guestSessionsCount,
+        registeredGuestSessionsCount,
+        anonymousGuestSessionsCount,
         ordersCount,
         callsCount,
         ratingsCount,
@@ -372,6 +405,200 @@ staffAdminRouter.get(
   })
 );
 
+// ГОСТИ / СЕССИИ
+staffAdminRouter.get(
+  "/guest-sessions",
+  asyncHandler(async (req, res) => {
+    const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const filter = getGuestFilter(req.query.filter);
+    const from = getDateFromRange(range);
+
+    const sessions = await prisma.guestSession.findMany({
+      where: {
+        ...dateWhere("startedAt", from),
+        table: { venueId },
+        ...(filter === "registered"
+          ? { userId: { not: null } }
+          : filter === "anonymous"
+          ? { userId: null }
+          : {}),
+      },
+      orderBy: { startedAt: "desc" },
+      include: {
+        table: {
+          select: { id: true, code: true, label: true },
+        },
+        shift: {
+          select: { id: true, status: true, openedAt: true },
+        },
+        user: {
+          select: { id: true, name: true, phone: true, email: true },
+        },
+        _count: {
+          select: {
+            orders: true,
+            calls: true,
+            payments: true,
+            ratings: true,
+          },
+        },
+      },
+      take: 200,
+    });
+
+    res.json({
+      ok: true,
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        table: s.table,
+        shift: s.shift,
+        user: s.user,
+        ordersCount: s._count.orders,
+        callsCount: s._count.calls,
+        paymentsCount: s._count.payments,
+        ratingsCount: s._count.ratings,
+      })),
+    });
+  })
+);
+
+// ЗАКАЗЫ
+staffAdminRouter.get(
+  "/orders",
+  asyncHandler(async (req, res) => {
+    const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        ...dateWhere("createdAt", from),
+        table: { venueId },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        table: {
+          select: { id: true, code: true, label: true },
+        },
+        user: {
+          select: { id: true, name: true, phone: true },
+        },
+        session: {
+          select: {
+            id: true,
+            user: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        },
+        items: {
+          select: {
+            qty: true,
+            priceCzk: true,
+          },
+        },
+      },
+      take: 200,
+    });
+
+    res.json({
+      ok: true,
+      orders: orders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        comment: o.comment,
+        createdAt: o.createdAt,
+        table: o.table,
+        user: o.user,
+        session: o.session,
+        itemsCount: o.items.reduce((sum, x) => sum + x.qty, 0),
+        totalCzk: o.items.reduce((sum, x) => sum + x.qty * x.priceCzk, 0),
+      })),
+    });
+  })
+);
+
+// ВЫЗОВЫ
+staffAdminRouter.get(
+  "/calls",
+  asyncHandler(async (req, res) => {
+    const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
+
+    const calls = await prisma.staffCall.findMany({
+      where: {
+        ...dateWhere("createdAt", from),
+        table: { venueId },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        table: {
+          select: { id: true, code: true, label: true },
+        },
+        session: {
+          select: {
+            id: true,
+            user: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        },
+      },
+      take: 200,
+    });
+
+    res.json({ ok: true, calls });
+  })
+);
+
+// ОПЛАТЫ
+staffAdminRouter.get(
+  "/payments",
+  asyncHandler(async (req, res) => {
+    const venueId = req.staff!.venueId;
+    const range = getRangeKey(req.query.range);
+    const from = getDateFromRange(range);
+
+    const payments = await prisma.paymentRequest.findMany({
+      where: {
+        ...dateWhere("createdAt", from),
+        table: { venueId },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        table: {
+          select: { id: true, code: true, label: true },
+        },
+        session: {
+          select: {
+            id: true,
+            user: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        },
+        confirmation: {
+          select: {
+            id: true,
+            amountCzk: true,
+            createdAt: true,
+            staff: {
+              select: { id: true, username: true, role: true },
+            },
+          },
+        },
+      },
+      take: 200,
+    });
+
+    res.json({ ok: true, payments });
+  })
+);
+
 // ПЕРСОНАЛ
 staffAdminRouter.get(
   "/staff-performance",
@@ -393,25 +620,23 @@ staffAdminRouter.get(
 
     const result = await Promise.all(
       staff.map(async (s) => {
-        const [shiftEntries] = await Promise.all([
-          prisma.shiftParticipant.count({
-            where: {
-              staffId: s.id,
-              shift: {
-                venueId,
-                ...dateWhere("openedAt", from),
-              },
+        const shiftsJoined = await prisma.shiftParticipant.count({
+          where: {
+            staffId: s.id,
+            shift: {
+              venueId,
+              ...dateWhere("openedAt", from),
             },
-          }),
-        ]);
+          },
+        });
 
         return {
           ...s,
-          shiftsJoined: shiftEntries,
+          shiftsJoined,
         };
       })
     );
 
     res.json({ ok: true, staff: result });
   })
-); 
+);

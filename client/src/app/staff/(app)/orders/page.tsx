@@ -19,7 +19,7 @@ function statusLabel(s: OrderStatus) {
 
 function nextAction(s: OrderStatus) {
   if (s === "NEW") return { status: "ACCEPTED" as OrderStatus, label: "Принять" };
-  if (s === "ACCEPTED") return { status: "IN_PROGRESS" as OrderStatus, label: "Готовится" };
+  if (s === "ACCEPTED") return { status: "IN_PROGRESS" as OrderStatus, label: "В работу" };
   if (s === "IN_PROGRESS") return { status: "DELIVERED" as OrderStatus, label: "Готово" };
   return null;
 }
@@ -28,6 +28,8 @@ const card =
   "rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.45)]";
 const btn =
   "rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50";
+const btnPrimary =
+  "rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50";
 const btnGhost =
   "rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white";
 
@@ -102,14 +104,14 @@ export default function StaffOrdersPage() {
     <div>
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-xl font-semibold text-white">Заказы</div>
             <div className="mt-1 text-xs text-white/50">
               Автообновление: {isRunning ? "включено" : "выключено"}
               {last ? ` • ${new Date(last).toLocaleTimeString()}` : ""}
             </div>
             <div className="mt-2 text-xs text-white/60">
-              Заказов: {orders.length} • Позиции: {totalItems}
+              Заказов: {orders.length} • Позиций: {totalItems}
             </div>
           </div>
 
@@ -123,9 +125,9 @@ export default function StaffOrdersPage() {
             <button
               key={s}
               className={[
-                "rounded-2xl border px-4 py-2 text-sm transition whitespace-nowrap",
+                "whitespace-nowrap rounded-2xl border px-4 py-2 text-sm transition",
                 s === status
-                  ? "border-white/20 bg-white/15 text-white"
+                  ? "border-white/20 bg-white text-black"
                   : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
               ].join(" ")}
               onClick={() => setStatus(s)}
@@ -167,12 +169,6 @@ export default function StaffOrdersPage() {
                       ? `${o.session.user.name} • ${o.session.user.phone}`
                       : "Гость без аккаунта"}
                   </div>
-
-                  {o.comment ? (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/85">
-                      Комментарий к заказу: {o.comment}
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="shrink-0 text-right">
@@ -180,6 +176,12 @@ export default function StaffOrdersPage() {
                   <div className="mt-1 text-lg font-semibold text-white">{sum} Kč</div>
                 </div>
               </div>
+
+              {o.comment ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/85">
+                  Комментарий к заказу: {o.comment}
+                </div>
+              ) : null}
 
               <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
                 {o.items.map((it) => (
@@ -203,10 +205,10 @@ export default function StaffOrdersPage() {
                 ))}
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-2">
                 {action ? (
                   <button
-                    className={btn}
+                    className={action.status === "ACCEPTED" ? btnPrimary : btn}
                     disabled={busyId === o.id}
                     onClick={() =>
                       void setTo(
@@ -215,7 +217,7 @@ export default function StaffOrdersPage() {
                         action.status === "ACCEPTED"
                           ? "Заказ принят"
                           : action.status === "IN_PROGRESS"
-                          ? "Заказ переведён в готовку"
+                          ? "Заказ переведён в работу"
                           : "Заказ отмечен как готовый"
                       )
                     }
@@ -230,7 +232,7 @@ export default function StaffOrdersPage() {
                     disabled={busyId === o.id}
                     onClick={() => void setTo(o.id, "CANCELLED", "Заказ отменён")}
                   >
-                    Отменить
+                    Отменить заказ
                   </button>
                 ) : null}
               </div>

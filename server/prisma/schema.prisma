@@ -302,7 +302,7 @@ enum ShiftStatus {
   OPEN
   CLOSED
 }
-
+ 
 enum OrderStatus {
   NEW
   ACCEPTED

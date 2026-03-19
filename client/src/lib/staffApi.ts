@@ -7,6 +7,7 @@ type ApiErr = { ok: false; error: string; status: number };
 export type ApiResult<T> = ApiOk<T> | ApiErr;
 
 export type AdminRange = "all" | "today" | "week" | "month";
+export type AdminGuestFilter = "all" | "registered" | "anonymous";
 
 function withQuery(path: string, params?: Record<string, string | undefined>) {
   const sp = new URLSearchParams();
@@ -276,6 +277,9 @@ export async function confirmPayment(id: string, amountCzk: number): Promise<Api
 export type AdminSummary = {
   range: AdminRange;
   usersCount: number;
+  guestSessionsCount: number;
+  registeredGuestSessionsCount: number;
+  anonymousGuestSessionsCount: number;
   ordersCount: number;
   callsCount: number;
   ratingsCount: number;
@@ -379,6 +383,57 @@ export type AdminStaffPerformanceItem = {
   shiftsJoined: number;
 };
 
+export type AdminGuestSessionItem = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  table: { id: number; code: string; label: string | null };
+  shift: { id: string; status: "OPEN" | "CLOSED"; openedAt: string } | null;
+  user: { id: string; name: string; phone: string; email: string | null } | null;
+  ordersCount: number;
+  callsCount: number;
+  paymentsCount: number;
+  ratingsCount: number;
+};
+
+export type AdminOrderItem = {
+  id: string;
+  status: OrderStatus;
+  comment: string | null;
+  createdAt: string;
+  table: { id: number; code: string; label: string | null };
+  user: { id: string; name: string; phone: string } | null;
+  session: { id: string; user: { id: string; name: string; phone: string } | null };
+  itemsCount: number;
+  totalCzk: number;
+};
+
+export type AdminCallItem = {
+  id: string;
+  type: CallType;
+  status: CallStatus;
+  message: string | null;
+  createdAt: string;
+  table: { id: number; code: string; label: string | null };
+  session: { id: string; user: { id: string; name: string; phone: string } | null };
+};
+
+export type AdminPaymentItem = {
+  id: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+  table: { id: number; code: string; label: string | null };
+  session: { id: string; user: { id: string; name: string; phone: string } | null };
+  confirmation: {
+    id: string;
+    amountCzk: number;
+    createdAt: string;
+    staff: { id: string; username: string; role: StaffRole };
+  } | null;
+};
+
 export async function getAdminSummary(range: AdminRange = "all"): Promise<ApiResult<{ summary: AdminSummary }>> {
   return tryPaths<{ ok: true; summary: AdminSummary }>(
     [withQuery("/staff/admin/summary", { range })],
@@ -423,4 +478,37 @@ export async function getAdminStaffPerformance(
     [withQuery("/staff/admin/staff-performance", { range })],
     { method: "GET" }
   ).then((r) => (r.ok ? { ok: true, data: { staff: r.data.staff } } : r));
-} 
+}
+
+export async function getAdminGuestSessions(
+  range: AdminRange = "all",
+  filter: AdminGuestFilter = "all"
+): Promise<ApiResult<{ sessions: AdminGuestSessionItem[] }>> {
+  return tryPaths<{ ok: true; sessions: AdminGuestSessionItem[] }>(
+    [withQuery("/staff/admin/guest-sessions", { range, filter })],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { sessions: r.data.sessions } } : r));
+}
+
+export async function getAdminOrders(range: AdminRange = "all"): Promise<ApiResult<{ orders: AdminOrderItem[] }>> {
+  return tryPaths<{ ok: true; orders: AdminOrderItem[] }>(
+    [withQuery("/staff/admin/orders", { range })],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { orders: r.data.orders } } : r));
+}
+
+export async function getAdminCalls(range: AdminRange = "all"): Promise<ApiResult<{ calls: AdminCallItem[] }>> {
+  return tryPaths<{ ok: true; calls: AdminCallItem[] }>(
+    [withQuery("/staff/admin/calls", { range })],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { calls: r.data.calls } } : r));
+}
+
+export async function getAdminPayments(
+  range: AdminRange = "all"
+): Promise<ApiResult<{ payments: AdminPaymentItem[] }>> {
+  return tryPaths<{ ok: true; payments: AdminPaymentItem[] }>(
+    [withQuery("/staff/admin/payments", { range })],
+    { method: "GET" }
+  ).then((r) => (r.ok ? { ok: true, data: { payments: r.data.payments } } : r));
+}

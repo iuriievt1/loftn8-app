@@ -1,96 +1,35 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
-
-const TABLE_STORAGE_KEY = "tableCode";
+import React, { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useSession } from "@/providers/session";
 
 export function RequireTable({ children }: { children: React.ReactNode }) {
-  const sp = useSearchParams();
-  const pathname = usePathname();
   const router = useRouter();
+  const pathname = usePathname();
 
-  const queryTable = sp.get("table");
-
-  const pathTable = useMemo(() => {
-    const m = pathname.match(/^\/t\/([^/]+)$/);
-    return m ? decodeURIComponent(m[1]) : null;
-  }, [pathname]);
-
-  const [ready, setReady] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { tableCode, sessionReady, sessionError } = useSession();
 
   useEffect(() => {
-    let cancelled = false;
+    if (sessionReady) return;
 
-    async function run() {
-      setErr(null);
-      setReady(false);
-
-      try {
-        await api("/guest/me");
-        if (!cancelled) setReady(true);
-        return;
-      } catch {}
-
-      const tableCode =
-        queryTable ||
-        pathTable ||
-        (typeof window !== "undefined" ? localStorage.getItem(TABLE_STORAGE_KEY) : null);
-
-      if (tableCode) {
-        try {
-          await api("/guest/session", {
-            method: "POST",
-            body: JSON.stringify({ tableCode }),
-          });
-
-          if (typeof window !== "undefined") {
-            localStorage.setItem(TABLE_STORAGE_KEY, tableCode);
-          }
-
-          if (!cancelled) setReady(true);
-          return;
-        } catch (e: any) {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem(TABLE_STORAGE_KEY);
-          }
-
-          if (!cancelled) {
-            setErr(e?.message ?? "Failed to create table session");
-          }
-
-          setTimeout(() => {
-            router.replace("/table");
-          }, 700);
-
-          return;
-        }
-      }
-
-      if (!cancelled) {
-        setErr("No table selected. Redirecting to table selection…");
-      }
-
-      setTimeout(() => {
-        router.replace("/table");
-      }, 700);
+    // не редиректим мгновенно, пока provider ещё восстанавливает session
+    if (!tableCode && sessionError) {
+      router.replace("/table");
     }
+  }, [sessionReady, tableCode, sessionError, router]);
 
-    void run();
+  if (sessionReady) {
+    return <>{children}</>;
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [queryTable, pathTable, router]);
-
-  if (!ready) {
+  // если реально нет table/session — тогда уже ведём на /table
+  if (!tableCode && sessionError) {
     return (
       <div className="mx-auto max-w-md p-4">
         <div className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
           <div className="text-sm font-semibold text-white">Table required</div>
-          <div className="mt-2 text-xs text-white/70">{err ?? "Connecting table…"}</div>
+          <div className="mt-2 text-xs text-white/70">Redirecting to table selection…</div>
 
           <button
             className="mt-3 w-full rounded-3xl bg-white px-4 py-3 text-sm font-semibold text-black"
@@ -103,5 +42,20 @@ export function RequireTable({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
-}  
+  // во время обычного перехода между вкладками ничего не мигает
+  return (
+    <div className="mx-auto max-w-md px-4 pb-28 pt-5">
+      <div className="flex min-h-[40vh] items-start justify-center pt-10">
+        <div className="flex flex-col items-center">
+          <img
+            src="/logo.svg"
+            alt="Loft N8"
+            className="h-12 w-12 animate-pulse opacity-90"
+          />
+          <div className="mt-3 text-sm font-medium text-white/85">Loading</div>
+          <div className="mt-1 text-xs text-white/50">Restoring your table session…</div>
+        </div>
+      </div>
+    </div>
+  );
+} 

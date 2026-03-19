@@ -8,6 +8,34 @@ import { useToast } from "@/providers/toast";
 import { RequireTable } from "@/components/RequireTable";
 import { useAuth } from "@/providers/auth";
 
+function QtyInline({
+  qty,
+  onMinus,
+  onPlus,
+}: {
+  qty: number;
+  onMinus: () => void;
+  onPlus: () => void;
+}) {
+  return (
+    <div className="flex h-11 items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-2">
+      <button
+        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-black/30 text-lg text-white"
+        onClick={onMinus}
+      >
+        −
+      </button>
+      <div className="w-8 text-center text-sm font-semibold text-white">{qty}</div>
+      <button
+        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-black/30 text-lg text-white"
+        onClick={onPlus}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 export default function CartPage() {
   const { me, loading } = useAuth();
   const isAuthed = !!me?.authenticated;
@@ -81,7 +109,10 @@ export default function CartPage() {
             </div>
 
             <div className="mt-4 flex gap-2">
-              <Link className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white" href="/call">
+              <Link
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white"
+                href="/call"
+              >
                 Staff
               </Link>
               <Link className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black" href="/auth">
@@ -104,7 +135,10 @@ export default function CartPage() {
             <div className="mt-1 text-xs text-white/60">{count ? `Items: ${count}` : "Empty for now"}</div>
           </div>
 
-          <Link href="/menu" className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">
+          <Link
+            href="/menu"
+            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+          >
             Menu
           </Link>
         </div>
@@ -125,22 +159,17 @@ export default function CartPage() {
               className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-white">{x.name}</div>
-                  <div className="mt-1 text-xs text-white/65">{x.priceCzk} Kč</div>
+                  <div className="mt-1 text-xs text-white/65">{x.priceCzk} Kč each</div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button className="h-10 w-10 rounded-2xl border border-white/10 bg-black/30 text-white" onClick={() => dec(x.menuItemId)}>
-                    −
-                  </button>
-                  <div className="w-8 text-center text-sm font-semibold text-white">{x.qty}</div>
-                  <button
-                    className="h-10 w-10 rounded-2xl border border-white/10 bg-black/30 text-white"
-                    onClick={() => add({ id: x.menuItemId, name: x.name, priceCzk: x.priceCzk } as any)}
-                  >
-                    +
-                  </button>
+                <div className="w-[132px] shrink-0">
+                  <QtyInline
+                    qty={x.qty}
+                    onMinus={() => dec(x.menuItemId)}
+                    onPlus={() => add({ id: x.menuItemId, name: x.name, priceCzk: x.priceCzk } as any)}
+                  />
                 </div>
               </div>
 
@@ -174,7 +203,10 @@ export default function CartPage() {
               rows={2}
             />
 
-            <button className="mt-3 w-full rounded-3xl bg-white px-4 py-3 text-sm font-semibold text-black" onClick={submit}>
+            <button
+              className="mt-3 w-full rounded-3xl bg-white px-4 py-3 text-sm font-semibold text-black"
+              onClick={submit}
+            >
               Place order
             </button>
           </div>

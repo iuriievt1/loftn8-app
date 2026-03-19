@@ -5,10 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useSession } from "@/providers/session";
 
-const TABLE_STORAGE_KEY = "tableCode";
-
 function normalizeToCode(raw: string) {
-  const v = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  const v = String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
   if (/^\d+$/.test(v)) return `T${v}`;
   if (v.startsWith("T") && /^\d+$/.test(v.slice(1))) return v;
   return v;
@@ -32,12 +33,7 @@ export default function TableEntry() {
         });
 
         setTableCode(tableCode);
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem(TABLE_STORAGE_KEY, tableCode);
-        }
-
-        router.replace(`/menu?table=${encodeURIComponent(tableCode)}`);
+        router.replace("/menu");
       } catch (e: any) {
         setErr(e?.message ?? "Failed to create session");
       }
@@ -47,13 +43,24 @@ export default function TableEntry() {
   }, [params.tableCode, router, setTableCode]);
 
   return (
-    <main className="mx-auto max-w-md p-4">
-      <h1 className="text-lg font-bold">Starting session…</h1>
-      {err ? (
-        <p className="mt-3 rounded-lg border bg-white p-3 text-sm text-red-600">
-          {err}
-        </p>
-      ) : null}
+    <main className="mx-auto max-w-md px-4 pb-28 pt-5">
+      <div className="flex min-h-[40vh] items-start justify-center pt-10">
+        <div className="flex flex-col items-center">
+          <img
+            src="/logo.svg"
+            alt="Loft N8"
+            className="h-12 w-12 animate-pulse opacity-90"
+          />
+          <div className="mt-3 text-sm font-medium text-white/85">Loading</div>
+          <div className="mt-1 text-xs text-white/50">Starting your table session…</div>
+
+          {err ? (
+            <div className="mt-4 rounded-2xl border border-red-400/25 bg-red-500/10 p-3 text-sm text-red-200">
+              {err}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </main>
   );
 }

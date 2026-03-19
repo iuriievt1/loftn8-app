@@ -23,7 +23,7 @@ function typeLabel(t: StaffCall["type"]) {
 }
 
 function nextAction(s: CallStatus) {
-  if (s === "NEW") return { status: "ACKED" as CallStatus, label: "Взять" };
+  if (s === "NEW") return { status: "ACKED" as CallStatus, label: "Взять в работу" };
   if (s === "ACKED") return { status: "DONE" as CallStatus, label: "Завершить" };
   return null;
 }
@@ -32,6 +32,8 @@ const card =
   "rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.45)]";
 const btn =
   "rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50";
+const btnPrimary =
+  "rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50";
 const btnGhost =
   "rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white";
 
@@ -101,7 +103,7 @@ export default function StaffCallsPage() {
     <div>
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-xl font-semibold text-white">Вызовы</div>
             <div className="mt-1 text-xs text-white/50">
               Автообновление: {isRunning ? "включено" : "выключено"}
@@ -120,9 +122,9 @@ export default function StaffCallsPage() {
             <button
               key={s}
               className={[
-                "rounded-2xl border px-4 py-2 text-sm transition whitespace-nowrap",
+                "whitespace-nowrap rounded-2xl border px-4 py-2 text-sm transition",
                 s === status
-                  ? "border-white/20 bg-white/15 text-white"
+                  ? "border-white/20 bg-white text-black"
                   : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
               ].join(" ")}
               onClick={() => setStatus(s)}
@@ -165,19 +167,19 @@ export default function StaffCallsPage() {
                       ? `${c.session.user.name} • ${c.session.user.phone}`
                       : "Гость без аккаунта"}
                   </div>
-
-                  {c.message ? (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/85">
-                      Сообщение: {c.message}
-                    </div>
-                  ) : null}
                 </div>
               </div>
+
+              {c.message ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/85">
+                  Сообщение: {c.message}
+                </div>
+              ) : null}
 
               <div className="mt-4">
                 {action ? (
                   <button
-                    className={btn}
+                    className={action.status === "ACKED" ? btnPrimary : btn}
                     disabled={busyId === c.id}
                     onClick={() =>
                       void setTo(

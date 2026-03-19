@@ -1,29 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStaffSummary } from "@/lib/staffApi";
+import { useStaffSession } from "@/providers/staffSession";
+import { getStaffMe } from "@/lib/staffApi";
+import { rebindPushIfPossible } from "@/lib/staffPush";
 
-export default function StaffGuard({ children }: { children: React.ReactNode }) {
+export function StaffGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [ok, setOk] = useState(false);
+  const { clear, setStaff } = useStaffSession();
+  const [ready, setReady] = useState(false);
+  const startedRef = useRef(false);
 
   useEffect(() => {
-    (async () => {
-      const r = await getStaffSummary();
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    let cancelled = false;
+
+    async function run() {
+      const r = await getStaffMe();
+
       if (!r.ok) {
+        clear();
         router.replace("/staff/login");
         return;
       }
-      setOk(true);
-    })();
-  }, [router]);
 
-  if (!ok) {
+      setStaff(r.data.staff);
+
+      try {
+        await rebindPushIfPossible();
+      } catch {
+        // ignore
+      }
+
+      if (!cancelled) setReady(true);
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, clear, setStaff]);
+
+  if (!ready) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-sm text-gray-500">Checking session…</div>
-      </main>
+      <div className="mx-auto max-w-md p-4">
+        <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+          <div className="text-base font-semibold text-white">Staff</div>
+          <div className="mt-2 text-sm text-white/60">Проверяем доступ…</div>
+        </div>
+      </div>
     );
   }
 

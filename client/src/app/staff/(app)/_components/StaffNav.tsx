@@ -11,10 +11,10 @@ function Tab({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={[
-        "flex-1 text-center py-2 rounded-2xl text-sm whitespace-nowrap",
-        "border border-white/10 bg-white/5 text-white/80 backdrop-blur",
-        "hover:bg-white/10 hover:text-white transition",
-        active ? "bg-white/15 text-white border-white/20" : "",
+        "whitespace-nowrap rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+        active
+          ? "border-white/20 bg-white text-black"
+          : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       {label}

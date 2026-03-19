@@ -60,6 +60,12 @@ function Icon({
   );
 }
 
+function isActivePath(pathname: string, href: string) {
+  if (pathname === href) return true;
+  if (href !== "/" && pathname.startsWith(`${href}/`)) return true;
+  return false;
+}
+
 function Item({
   href,
   label,
@@ -72,7 +78,7 @@ function Item({
   badge?: number;
 }) {
   const pathname = usePathname();
-  const active = pathname === href;
+  const active = isActivePath(pathname, href);
 
   return (
     <Link
@@ -137,13 +143,7 @@ export function BottomNav() {
         <div className="rounded-[26px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
           <div className={["px-1", nav.length === 2 ? "grid grid-cols-2" : "grid grid-cols-4"].join(" ")}>
             {nav.map((x) => (
-              <Item
-                key={x.href}
-                href={x.href}
-                label={x.label}
-                icon={x.icon}
-                badge={(x as any).badge}
-              />
+              <Item key={x.href} href={x.href} label={x.label} icon={x.icon} badge={(x as any).badge} />
             ))}
           </div>
         </div>

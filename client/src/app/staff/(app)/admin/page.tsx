@@ -8,6 +8,10 @@ import {
   getAdminUsers,
   getAdminStaffPerformance,
   getAdminShiftDetails,
+  getAdminGuestSessions,
+  getAdminOrders,
+  getAdminCalls,
+  getAdminPayments,
   type AdminSummary,
   type AdminShiftItem,
   type AdminRatingItem,
@@ -15,10 +19,24 @@ import {
   type AdminStaffPerformanceItem,
   type AdminShiftDetails,
   type AdminRange,
+  type AdminGuestFilter,
+  type AdminGuestSessionItem,
+  type AdminOrderItem,
+  type AdminCallItem,
+  type AdminPaymentItem,
 } from "@/lib/staffApi";
 import { useStaffSession } from "@/providers/staffSession";
 
-type AdminTab = "overview" | "shifts" | "ratings" | "users" | "staff";
+type AdminTab =
+  | "overview"
+  | "users"
+  | "guests"
+  | "shifts"
+  | "orders"
+  | "calls"
+  | "payments"
+  | "ratings"
+  | "staff";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -27,6 +45,37 @@ function cn(...classes: Array<string | false | null | undefined>) {
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString();
+}
+
+function rangeLabel(range: AdminRange) {
+  if (range === "today") return "Сегодня";
+  if (range === "week") return "7 дней";
+  if (range === "month") return "30 дней";
+  return "Всё время";
+}
+
+function callTypeLabel(v: string) {
+  if (v === "WAITER") return "Официант";
+  if (v === "HOOKAH") return "Кальянщик";
+  if (v === "BILL") return "Счёт";
+  return "Помощь";
+}
+
+function statusBadge(status: string) {
+  const cls =
+    status === "OPEN" || status === "CONFIRMED" || status === "DELIVERED" || status === "DONE"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "PENDING" || status === "NEW" || status === "ACCEPTED" || status === "ACKED"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : status === "CANCELLED"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-slate-200 bg-slate-50 text-slate-700";
+
+  return (
+    <span className={cn("inline-flex rounded-full border px-2 py-1 text-xs font-medium", cls)}>
+      {status}
+    </span>
+  );
 }
 
 function StatCard({
@@ -72,7 +121,43 @@ function SectionCard({
   );
 }
 
-function TabButton({
+function SidebarItem({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count?: number | null;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition",
+        active
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      )}
+    >
+      <span className="font-medium">{label}</span>
+      {typeof count === "number" ? (
+        <span
+          className={cn(
+            "inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold",
+            active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-700"
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function RangeButton({
   active,
   children,
   onClick,
@@ -85,10 +170,10 @@ function TabButton({
     <button
       onClick={onClick}
       className={cn(
-        "rounded-xl border px-3 py-2 text-sm transition",
+        "rounded-lg border px-3 py-1.5 text-sm transition",
         active
           ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
       )}
     >
       {children}
@@ -96,7 +181,7 @@ function TabButton({
   );
 }
 
-function RangeButton({
+function GuestFilterButton({
   active,
   children,
   onClick,
@@ -248,6 +333,7 @@ export default function StaffAdminPage() {
 
   const [tab, setTab] = useState<AdminTab>("overview");
   const [range, setRange] = useState<AdminRange>("all");
+  const [guestFilter, setGuestFilter] = useState<AdminGuestFilter>("all");
   const [query, setQuery] = useState("");
 
   const [summary, setSummary] = useState<AdminSummary | null>(null);
@@ -255,6 +341,10 @@ export default function StaffAdminPage() {
   const [ratings, setRatings] = useState<AdminRatingItem[]>([]);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [staffPerf, setStaffPerf] = useState<AdminStaffPerformanceItem[]>([]);
+  const [guestSessions, setGuestSessions] = useState<AdminGuestSessionItem[]>([]);
+  const [orders, setOrders] = useState<AdminOrderItem[]>([]);
+  const [calls, setCalls] = useState<AdminCallItem[]>([]);
+  const [payments, setPayments] = useState<AdminPaymentItem[]>([]);
 
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -265,36 +355,50 @@ export default function StaffAdminPage() {
 
   const isAllowed = staff?.role === "MANAGER" || staff?.role === "ADMIN";
 
-  const load = async (activeRange: AdminRange = range) => {
+  const load = async (activeRange: AdminRange = range, activeGuestFilter: AdminGuestFilter = guestFilter) => {
     setLoading(true);
     setErr(null);
 
-    const [s1, s2, s3, s4, s5] = await Promise.all([
+    const [s1, s2, s3, s4, s5, s6, s7, s8] = await Promise.all([
       getAdminSummary(activeRange),
       getAdminShifts(activeRange),
       getAdminRatings(activeRange),
       getAdminUsers(activeRange),
       getAdminStaffPerformance(activeRange),
+      getAdminGuestSessions(activeRange, activeGuestFilter),
+      getAdminOrders(activeRange),
+      getAdminCalls(activeRange),
     ]);
+
+    const s9 = await getAdminPayments(activeRange);
 
     if (!s1.ok) return setErr(s1.error), setLoading(false);
     if (!s2.ok) return setErr(s2.error), setLoading(false);
     if (!s3.ok) return setErr(s3.error), setLoading(false);
     if (!s4.ok) return setErr(s4.error), setLoading(false);
     if (!s5.ok) return setErr(s5.error), setLoading(false);
+    if (!s6.ok) return setErr(s6.error), setLoading(false);
+    if (!s7.ok) return setErr(s7.error), setLoading(false);
+    if (!s8.ok) return setErr(s8.error), setLoading(false);
+    if (!s9.ok) return setErr(s9.error), setLoading(false);
 
     setSummary(s1.data.summary);
     setShifts(s2.data.shifts);
     setRatings(s3.data.ratings);
     setUsers(s4.data.users);
     setStaffPerf(s5.data.staff);
+    setGuestSessions(s6.data.sessions);
+    setOrders(s7.data.orders);
+    setCalls(s8.data.calls);
+    setPayments(s9.data.payments);
 
     setLoading(false);
   };
 
   useEffect(() => {
-    void load(range);
-  }, [range]);
+    void load(range, guestFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, guestFilter]);
 
   const openShiftDetails = async (id: string) => {
     setSelectedShiftId(id);
@@ -312,36 +416,10 @@ export default function StaffAdminPage() {
     setSelectedShift(r.data);
   };
 
-  const filteredShifts = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return shifts;
-
-    return shifts.filter((shift) => {
-      return (
-        shift.id.toLowerCase().includes(q) ||
-        shift.status.toLowerCase().includes(q) ||
-        (shift.openedByManager?.username ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [shifts, query]);
-
-  const filteredRatings = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return ratings;
-
-    return ratings.filter((r) => {
-      return (
-        r.table.code.toLowerCase().includes(q) ||
-        (r.comment ?? "").toLowerCase().includes(q) ||
-        (r.session.user?.name ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [ratings, query]);
+  const q = query.trim().toLowerCase();
 
   const filteredUsers = useMemo(() => {
-    const q = query.trim().toLowerCase();
     if (!q) return users;
-
     return users.filter((u) => {
       return (
         u.name.toLowerCase().includes(q) ||
@@ -349,16 +427,87 @@ export default function StaffAdminPage() {
         (u.email ?? "").toLowerCase().includes(q)
       );
     });
-  }, [users, query]);
+  }, [users, q]);
+
+  const filteredGuests = useMemo(() => {
+    if (!q) return guestSessions;
+    return guestSessions.filter((s) => {
+      return (
+        s.id.toLowerCase().includes(q) ||
+        s.table.code.toLowerCase().includes(q) ||
+        (s.user?.name ?? "").toLowerCase().includes(q) ||
+        (s.user?.phone ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [guestSessions, q]);
+
+  const filteredShifts = useMemo(() => {
+    if (!q) return shifts;
+    return shifts.filter((shift) => {
+      return (
+        shift.id.toLowerCase().includes(q) ||
+        shift.status.toLowerCase().includes(q) ||
+        (shift.openedByManager?.username ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [shifts, q]);
+
+  const filteredRatings = useMemo(() => {
+    if (!q) return ratings;
+    return ratings.filter((r) => {
+      return (
+        r.table.code.toLowerCase().includes(q) ||
+        (r.comment ?? "").toLowerCase().includes(q) ||
+        (r.session.user?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [ratings, q]);
 
   const filteredStaff = useMemo(() => {
-    const q = query.trim().toLowerCase();
     if (!q) return staffPerf;
-
     return staffPerf.filter((s) => {
       return s.username.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
     });
-  }, [staffPerf, query]);
+  }, [staffPerf, q]);
+
+  const filteredOrders = useMemo(() => {
+    if (!q) return orders;
+    return orders.filter((o) => {
+      return (
+        o.id.toLowerCase().includes(q) ||
+        o.table.code.toLowerCase().includes(q) ||
+        o.status.toLowerCase().includes(q) ||
+        (o.session.user?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [orders, q]);
+
+  const filteredCalls = useMemo(() => {
+    if (!q) return calls;
+    return calls.filter((c) => {
+      return (
+        c.id.toLowerCase().includes(q) ||
+        c.table.code.toLowerCase().includes(q) ||
+        c.type.toLowerCase().includes(q) ||
+        c.status.toLowerCase().includes(q) ||
+        (c.session.user?.name ?? "").toLowerCase().includes(q) ||
+        (c.message ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [calls, q]);
+
+  const filteredPayments = useMemo(() => {
+    if (!q) return payments;
+    return payments.filter((p) => {
+      return (
+        p.id.toLowerCase().includes(q) ||
+        p.table.code.toLowerCase().includes(q) ||
+        p.method.toLowerCase().includes(q) ||
+        p.status.toLowerCase().includes(q) ||
+        (p.session.user?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [payments, q]);
 
   const latestRatings = filteredRatings.slice(0, 6);
   const latestUsers = filteredUsers.slice(0, 6);
@@ -375,328 +524,537 @@ export default function StaffAdminPage() {
   return (
     <>
       <main className="rounded-[28px] border border-slate-200 bg-[#f6f7fb] p-4 text-slate-900 shadow-sm lg:p-6">
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              Loft N8 Аналитика
+              Loft N8 Analytics
             </div>
-            <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+            <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
               Админ-панель
             </div>
-            <div className="mt-2 max-w-2xl text-sm text-slate-500">
-              Понятная статистика по выручке, сменам, отзывам, пользователям и персоналу.
+            <div className="mt-2 text-sm text-slate-500">
+              Структура как в Prisma: слева разделы, справа данные.
             </div>
-          </div>
 
-          <div className="flex flex-col gap-3 lg:min-w-[420px]">
-            <div className="flex gap-2">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск: пользователь / стол / комментарий / логин"
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            <div className="mt-4 space-y-2">
+              <SidebarItem
+                active={tab === "overview"}
+                label="Статистика"
+                onClick={() => setTab("overview")}
               />
-              <button
-                onClick={() => void load(range)}
-                className="h-11 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
-              >
-                Обновить
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
-                Обзор
-              </TabButton>
-              <TabButton active={tab === "shifts"} onClick={() => setTab("shifts")}>
-                Смены
-              </TabButton>
-              <TabButton active={tab === "ratings"} onClick={() => setTab("ratings")}>
-                Оценки
-              </TabButton>
-              <TabButton active={tab === "users"} onClick={() => setTab("users")}>
-                Пользователи
-              </TabButton>
-              <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
-                Персонал
-              </TabButton>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <RangeButton active={range === "all"} onClick={() => setRange("all")}>
-                Всё
-              </RangeButton>
-              <RangeButton active={range === "today"} onClick={() => setRange("today")}>
-                Сегодня
-              </RangeButton>
-              <RangeButton active={range === "week"} onClick={() => setRange("week")}>
-                7 дней
-              </RangeButton>
-              <RangeButton active={range === "month"} onClick={() => setRange("month")}>
-                30 дней
-              </RangeButton>
-            </div>
-          </div>
-        </div>
-
-        {err ? (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {err}
-          </div>
-        ) : null}
-
-        {loading ? (
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
-            Загрузка данных…
-          </div>
-        ) : null}
-
-        {!loading && tab === "overview" && summary ? (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <StatCard title="Выручка" value={`${summary.totalRevenueCzk} Kč`} hint="заработок за выбранный период" />
-              <StatCard title="Пользователи" value={summary.usersCount} />
-              <StatCard title="Заказы" value={summary.ordersCount} />
-              <StatCard title="Вызовы" value={summary.callsCount} />
-              <StatCard title="Оценки" value={summary.ratingsCount} />
-              <StatCard title="Оплаты" value={summary.paymentsCount} />
-              <StatCard
-                title="Средняя оценка"
-                value={summary.avgOverall ? summary.avgOverall.toFixed(1) : "—"}
-                hint={`Еда ${summary.avgFood?.toFixed(1) ?? "—"} • Напитки ${summary.avgDrinks?.toFixed(1) ?? "—"} • Кальян ${summary.avgHookah?.toFixed(1) ?? "—"}`}
+              <SidebarItem
+                active={tab === "users"}
+                label="Пользователи"
+                count={users.length}
+                onClick={() => setTab("users")}
               />
-              <StatCard
-                title="Смены"
-                value={summary.shiftsTotal}
-                hint={summary.openShift ? `Открыта: ${formatDate(summary.openShift.openedAt)}` : "Сейчас смена закрыта"}
+              <SidebarItem
+                active={tab === "guests"}
+                label="Гости"
+                count={guestSessions.length}
+                onClick={() => setTab("guests")}
+              />
+              <SidebarItem
+                active={tab === "shifts"}
+                label="Смены"
+                count={shifts.length}
+                onClick={() => setTab("shifts")}
+              />
+              <SidebarItem
+                active={tab === "orders"}
+                label="Заказы"
+                count={orders.length}
+                onClick={() => setTab("orders")}
+              />
+              <SidebarItem
+                active={tab === "calls"}
+                label="Вызовы"
+                count={calls.length}
+                onClick={() => setTab("calls")}
+              />
+              <SidebarItem
+                active={tab === "payments"}
+                label="Оплаты"
+                count={payments.length}
+                onClick={() => setTab("payments")}
+              />
+              <SidebarItem
+                active={tab === "ratings"}
+                label="Оценки"
+                count={ratings.length}
+                onClick={() => setTab("ratings")}
+              />
+              <SidebarItem
+                active={tab === "staff"}
+                label="Персонал"
+                count={staffPerf.length}
+                onClick={() => setTab("staff")}
               />
             </div>
+          </aside>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <SectionCard title="Последние оценки" subtitle="Свежий фид отзывов">
-                <div className="space-y-3">
-                  {latestRatings.map((r) => (
-                    <div key={r.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-sm font-semibold text-slate-900">
-                        Стол {r.table.code} • общая {r.overall}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        Еда {r.food ?? "—"} • Напитки {r.drinks ?? "—"} • Кальян {r.hookah ?? "—"}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-400">{formatDate(r.createdAt)}</div>
-                      {r.comment ? <div className="mt-2 text-sm text-slate-700">{r.comment}</div> : null}
-                    </div>
-                  ))}
-                  {latestRatings.length === 0 ? (
-                    <div className="text-sm text-slate-500">Нет отзывов.</div>
-                  ) : null}
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Последние пользователи" subtitle="Новые регистрации">
-                <div className="space-y-3">
-                  {latestUsers.map((u) => (
-                    <div key={u.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-sm font-semibold text-slate-900">{u.name}</div>
-                      <div className="mt-1 text-xs text-slate-500">{u.phone}</div>
-                      <div className="mt-1 text-xs text-slate-400">{u.email ?? "без email"}</div>
-                      <div className="mt-1 text-xs text-slate-400">{formatDate(u.createdAt)}</div>
-                    </div>
-                  ))}
-                  {latestUsers.length === 0 ? (
-                    <div className="text-sm text-slate-500">Нет пользователей.</div>
-                  ) : null}
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Текущий статус" subtitle="Ключевые показатели по точке">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Активная смена</div>
-                    <div className="mt-2 text-2xl font-semibold text-slate-900">
-                      {summary.openShift ? "Открыта" : "Закрыта"}
-                    </div>
-                    <div className="mt-2 text-sm text-slate-500">
-                      {summary.openShift ? formatDate(summary.openShift.openedAt) : "Сейчас смена закрыта"}
-                    </div>
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-2xl font-semibold text-slate-900">
+                    {tab === "overview" && "Статистика"}
+                    {tab === "users" && "Пользователи"}
+                    {tab === "guests" && "Гости"}
+                    {tab === "shifts" && "Смены"}
+                    {tab === "orders" && "Заказы"}
+                    {tab === "calls" && "Вызовы"}
+                    {tab === "payments" && "Оплаты"}
+                    {tab === "ratings" && "Оценки"}
+                    {tab === "staff" && "Персонал"}
                   </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Период</div>
-                    <div className="mt-2 text-2xl font-semibold text-slate-900">
-                      {range === "all" ? "Всё время" : range === "today" ? "Сегодня" : range === "week" ? "7 дней" : "30 дней"}
-                    </div>
-                    <div className="mt-2 text-sm text-slate-500">Фильтр применяется ко всей админке</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Период: {rangeLabel(range)}
                   </div>
                 </div>
-              </SectionCard>
 
-              <SectionCard title="Персонал" subtitle="Сколько смен отработано">
-                <div className="space-y-3">
-                  {filteredStaff.map((s) => (
-                    <div key={s.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
+                <button
+                  onClick={() => void load(range, guestFilter)}
+                  className="h-11 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                >
+                  Обновить
+                </button>
+              </div>
+
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Поиск: пользователь / стол / комментарий / логин / ID"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <RangeButton active={range === "all"} onClick={() => setRange("all")}>
+                    Всё
+                  </RangeButton>
+                  <RangeButton active={range === "today"} onClick={() => setRange("today")}>
+                    Сегодня
+                  </RangeButton>
+                  <RangeButton active={range === "week"} onClick={() => setRange("week")}>
+                    7 дней
+                  </RangeButton>
+                  <RangeButton active={range === "month"} onClick={() => setRange("month")}>
+                    30 дней
+                  </RangeButton>
+                </div>
+              </div>
+
+              {tab === "guests" ? (
+                <div className="flex flex-wrap gap-2">
+                  <GuestFilterButton active={guestFilter === "all"} onClick={() => setGuestFilter("all")}>
+                    Все
+                  </GuestFilterButton>
+                  <GuestFilterButton active={guestFilter === "registered"} onClick={() => setGuestFilter("registered")}>
+                    С аккаунтом
+                  </GuestFilterButton>
+                  <GuestFilterButton active={guestFilter === "anonymous"} onClick={() => setGuestFilter("anonymous")}>
+                    Без аккаунта
+                  </GuestFilterButton>
+                </div>
+              ) : null}
+            </div>
+
+            {err ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {err}
+              </div>
+            ) : null}
+
+            {loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
+                Загрузка данных…
+              </div>
+            ) : null}
+
+            {!loading && tab === "overview" && summary ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <StatCard title="Выручка" value={`${summary.totalRevenueCzk} Kč`} hint="за выбранный период" />
+                  <StatCard title="Пользователи" value={summary.usersCount} />
+                  <StatCard title="Гостевые сессии" value={summary.guestSessionsCount} />
+                  <StatCard title="С аккаунтом" value={summary.registeredGuestSessionsCount} />
+                  <StatCard title="Без аккаунта" value={summary.anonymousGuestSessionsCount} />
+                  <StatCard title="Заказы" value={summary.ordersCount} />
+                  <StatCard title="Вызовы" value={summary.callsCount} />
+                  <StatCard title="Оплаты" value={summary.paymentsCount} />
+                  <StatCard title="Оценки" value={summary.ratingsCount} />
+                  <StatCard
+                    title="Средняя оценка"
+                    value={summary.avgOverall ? summary.avgOverall.toFixed(1) : "—"}
+                    hint={`Еда ${summary.avgFood?.toFixed(1) ?? "—"} • Напитки ${summary.avgDrinks?.toFixed(1) ?? "—"} • Кальян ${summary.avgHookah?.toFixed(1) ?? "—"}`}
+                  />
+                  <StatCard title="Смены" value={summary.shiftsTotal} />
+                  <StatCard
+                    title="Активная смена"
+                    value={summary.openShift ? "Открыта" : "Закрыта"}
+                    hint={summary.openShift ? formatDate(summary.openShift.openedAt) : "Сейчас смены нет"}
+                  />
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <SectionCard title="Последние оценки" subtitle="Свежий фид отзывов">
+                    <div className="space-y-3">
+                      {latestRatings.map((r) => (
+                        <div key={r.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <div className="text-sm font-semibold text-slate-900">
-                            {s.username} • {s.role}
+                            Стол {r.table.code} • общая {r.overall}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            Смен отработано: {s.shiftsJoined}
+                            Еда {r.food ?? "—"} • Напитки {r.drinks ?? "—"} • Кальян {r.hookah ?? "—"}
                           </div>
+                          <div className="mt-1 text-xs text-slate-400">{formatDate(r.createdAt)}</div>
+                          {r.comment ? <div className="mt-2 text-sm text-slate-700">{r.comment}</div> : null}
                         </div>
-                      </div>
+                      ))}
+                      {latestRatings.length === 0 ? (
+                        <div className="text-sm text-slate-500">Нет отзывов.</div>
+                      ) : null}
                     </div>
-                  ))}
-                  {filteredStaff.length === 0 ? (
-                    <div className="text-sm text-slate-500">Нет данных по персоналу.</div>
+                  </SectionCard>
+
+                  <SectionCard title="Последние пользователи" subtitle="Новые регистрации">
+                    <div className="space-y-3">
+                      {latestUsers.map((u) => (
+                        <div key={u.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-sm font-semibold text-slate-900">{u.name}</div>
+                          <div className="mt-1 text-xs text-slate-500">{u.phone}</div>
+                          <div className="mt-1 text-xs text-slate-400">{u.email ?? "без email"}</div>
+                          <div className="mt-1 text-xs text-slate-400">{formatDate(u.createdAt)}</div>
+                        </div>
+                      ))}
+                      {latestUsers.length === 0 ? (
+                        <div className="text-sm text-slate-500">Нет пользователей.</div>
+                      ) : null}
+                    </div>
+                  </SectionCard>
+                </div>
+              </div>
+            ) : null}
+
+            {!loading && tab === "users" && (
+              <SectionCard
+                title="Пользователи"
+                subtitle="Только зарегистрированные пользователи"
+                right={<div className="text-sm text-slate-500">Всего: {filteredUsers.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Имя</th>
+                        <th className="px-4 py-3">Телефон</th>
+                        <th className="px-4 py-3">Email</th>
+                        <th className="px-4 py-3">Согласие</th>
+                        <th className="px-4 py-3">Создан</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((u) => (
+                        <tr key={u.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
+                          <td className="px-4 py-3">{u.phone}</td>
+                          <td className="px-4 py-3">{u.email ?? "—"}</td>
+                          <td className="px-4 py-3">{u.privacyAcceptedAt ? "Да" : "Нет"}</td>
+                          <td className="px-4 py-3">{formatDate(u.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredUsers.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет пользователей.</div>
                   ) : null}
                 </div>
               </SectionCard>
-            </div>
+            )}
+
+            {!loading && tab === "guests" && (
+              <SectionCard
+                title="Гости"
+                subtitle="Все гостевые сессии по столам"
+                right={<div className="text-sm text-slate-500">Всего: {filteredGuests.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Стол</th>
+                        <th className="px-4 py-3">Гость</th>
+                        <th className="px-4 py-3">Тип</th>
+                        <th className="px-4 py-3">Сессия</th>
+                        <th className="px-4 py-3">Активность</th>
+                        <th className="px-4 py-3">Начало</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredGuests.map((s) => (
+                        <tr key={s.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            {s.table.code}
+                            {s.table.label ? ` • ${s.table.label}` : ""}
+                          </td>
+                          <td className="px-4 py-3">
+                            {s.user ? `${s.user.name} • ${s.user.phone}` : "Гость без аккаунта"}
+                          </td>
+                          <td className="px-4 py-3">{s.user ? "С аккаунтом" : "Без аккаунта"}</td>
+                          <td className="px-4 py-3">{s.id}</td>
+                          <td className="px-4 py-3">
+                            Заказы {s.ordersCount} • Вызовы {s.callsCount} • Оплаты {s.paymentsCount} • Оценки {s.ratingsCount}
+                          </td>
+                          <td className="px-4 py-3">{formatDate(s.startedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredGuests.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет гостевых сессий.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "shifts" && (
+              <SectionCard
+                title="Смены"
+                subtitle="История смен и быстрый просмотр деталей"
+                right={<div className="text-sm text-slate-500">Всего: {filteredShifts.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Открыта</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Открыл</th>
+                        <th className="px-4 py-3">Участники</th>
+                        <th className="px-4 py-3">Действие</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredShifts.map((shift) => (
+                        <tr key={shift.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-900">{formatDate(shift.openedAt)}</div>
+                            <div className="text-xs text-slate-400">{shift.id}</div>
+                          </td>
+                          <td className="px-4 py-3">{statusBadge(shift.status)}</td>
+                          <td className="px-4 py-3">{shift.openedByManager?.username ?? "—"}</td>
+                          <td className="px-4 py-3">{shift.participants?.length ?? 0}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => void openShiftDetails(shift.id)}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            >
+                              Открыть
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredShifts.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет смен.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "orders" && (
+              <SectionCard
+                title="Заказы"
+                subtitle="Все заказы гостей по точке"
+                right={<div className="text-sm text-slate-500">Всего: {filteredOrders.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Дата</th>
+                        <th className="px-4 py-3">Стол</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Гость</th>
+                        <th className="px-4 py-3">Позиции</th>
+                        <th className="px-4 py-3">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOrders.map((o) => (
+                        <tr key={o.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3">{formatDate(o.createdAt)}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{o.table.code}</td>
+                          <td className="px-4 py-3">{statusBadge(o.status)}</td>
+                          <td className="px-4 py-3">{o.session.user ? `${o.session.user.name} • ${o.session.user.phone}` : "Без аккаунта"}</td>
+                          <td className="px-4 py-3">{o.itemsCount}</td>
+                          <td className="px-4 py-3">{o.totalCzk} Kč</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredOrders.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет заказов.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "calls" && (
+              <SectionCard
+                title="Вызовы"
+                subtitle="Все обращения гостей"
+                right={<div className="text-sm text-slate-500">Всего: {filteredCalls.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Дата</th>
+                        <th className="px-4 py-3">Стол</th>
+                        <th className="px-4 py-3">Тип</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Гость</th>
+                        <th className="px-4 py-3">Сообщение</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCalls.map((c) => (
+                        <tr key={c.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3">{formatDate(c.createdAt)}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{c.table.code}</td>
+                          <td className="px-4 py-3">{callTypeLabel(c.type)}</td>
+                          <td className="px-4 py-3">{statusBadge(c.status)}</td>
+                          <td className="px-4 py-3">{c.session.user ? `${c.session.user.name} • ${c.session.user.phone}` : "Без аккаунта"}</td>
+                          <td className="px-4 py-3">{c.message || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredCalls.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет вызовов.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "payments" && (
+              <SectionCard
+                title="Оплаты"
+                subtitle="Запросы оплаты и подтверждения"
+                right={<div className="text-sm text-slate-500">Всего: {filteredPayments.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Дата</th>
+                        <th className="px-4 py-3">Стол</th>
+                        <th className="px-4 py-3">Метод</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Гость</th>
+                        <th className="px-4 py-3">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.map((p) => (
+                        <tr key={p.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3">{formatDate(p.createdAt)}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{p.table.code}</td>
+                          <td className="px-4 py-3">{p.method === "CARD" ? "Карта" : "Наличные"}</td>
+                          <td className="px-4 py-3">{statusBadge(p.status)}</td>
+                          <td className="px-4 py-3">{p.session.user ? `${p.session.user.name} • ${p.session.user.phone}` : "Без аккаунта"}</td>
+                          <td className="px-4 py-3">{p.confirmation?.amountCzk ? `${p.confirmation.amountCzk} Kč` : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredPayments.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет оплат.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "ratings" && (
+              <SectionCard
+                title="Оценки"
+                subtitle="Отзывы по столам и пользователям"
+                right={<div className="text-sm text-slate-500">Всего: {filteredRatings.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Стол</th>
+                        <th className="px-4 py-3">Общая</th>
+                        <th className="px-4 py-3">Комментарий</th>
+                        <th className="px-4 py-3">Дата</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRatings.map((r) => (
+                        <tr key={r.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3 font-medium text-slate-900">{r.table.code}</td>
+                          <td className="px-4 py-3">{r.overall}</td>
+                          <td className="px-4 py-3">{r.comment || "—"}</td>
+                          <td className="px-4 py-3">{formatDate(r.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredRatings.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет отзывов.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
+
+            {!loading && tab === "staff" && (
+              <SectionCard
+                title="Персонал"
+                subtitle="Сколько смен отработано"
+                right={<div className="text-sm text-slate-500">Всего: {filteredStaff.length}</div>}
+              >
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Сотрудник</th>
+                        <th className="px-4 py-3">Роль</th>
+                        <th className="px-4 py-3">Смен отработано</th>
+                        <th className="px-4 py-3">Создан</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStaff.map((s) => (
+                        <tr key={s.id} className="border-t border-slate-200 text-slate-700">
+                          <td className="px-4 py-3 font-medium text-slate-900">{s.username}</td>
+                          <td className="px-4 py-3">{s.role}</td>
+                          <td className="px-4 py-3">{s.shiftsJoined}</td>
+                          <td className="px-4 py-3">{formatDate(s.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredStaff.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-500">Нет данных по персоналу.</div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            )}
           </div>
-        ) : null}
-
-        {!loading && tab === "shifts" && (
-          <SectionCard
-            title="Смены"
-            subtitle="История смен и быстрый просмотр деталей"
-            right={<div className="text-sm text-slate-500">Всего: {filteredShifts.length}</div>}
-          >
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_120px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <div>Открыта</div>
-                <div>Статус</div>
-                <div>Открыл</div>
-                <div>Участники</div>
-                <div>Действие</div>
-              </div>
-
-              {filteredShifts.map((shift) => (
-                <div
-                  key={shift.id}
-                  className="grid grid-cols-[1.2fr_1fr_1fr_1fr_120px] items-center border-t border-slate-200 px-4 py-3 text-sm text-slate-700"
-                >
-                  <div>
-                    <div className="font-medium text-slate-900">{formatDate(shift.openedAt)}</div>
-                    <div className="text-xs text-slate-400">{shift.id}</div>
-                  </div>
-                  <div>{shift.status}</div>
-                  <div>{shift.openedByManager?.username ?? "—"}</div>
-                  <div>{shift.participants?.length ?? 0}</div>
-                  <div>
-                    <button
-                      onClick={() => void openShiftDetails(shift.id)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Открыть
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {filteredShifts.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-500">Нет смен.</div>
-              ) : null}
-            </div>
-          </SectionCard>
-        )}
-
-        {!loading && tab === "ratings" && (
-          <SectionCard
-            title="Оценки"
-            subtitle="Отзывы по столам и пользователям"
-            right={<div className="text-sm text-slate-500">Всего: {filteredRatings.length}</div>}
-          >
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[120px_120px_1fr_180px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <div>Стол</div>
-                <div>Общая</div>
-                <div>Комментарий</div>
-                <div>Дата</div>
-              </div>
-
-              {filteredRatings.map((r) => (
-                <div
-                  key={r.id}
-                  className="grid grid-cols-[120px_120px_1fr_180px] border-t border-slate-200 px-4 py-3 text-sm text-slate-700"
-                >
-                  <div className="font-medium text-slate-900">{r.table.code}</div>
-                  <div>{r.overall}</div>
-                  <div>{r.comment || "—"}</div>
-                  <div>{formatDate(r.createdAt)}</div>
-                </div>
-              ))}
-
-              {filteredRatings.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-500">Нет отзывов.</div>
-              ) : null}
-            </div>
-          </SectionCard>
-        )}
-
-        {!loading && tab === "users" && (
-          <SectionCard
-            title="Пользователи"
-            subtitle="Зарегистрированные пользователи"
-            right={<div className="text-sm text-slate-500">Всего: {filteredUsers.length}</div>}
-          >
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[1fr_1fr_1fr_180px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <div>Имя</div>
-                <div>Телефон</div>
-                <div>Email</div>
-                <div>Создан</div>
-              </div>
-
-              {filteredUsers.map((u) => (
-                <div
-                  key={u.id}
-                  className="grid grid-cols-[1fr_1fr_1fr_180px] border-t border-slate-200 px-4 py-3 text-sm text-slate-700"
-                >
-                  <div className="font-medium text-slate-900">{u.name}</div>
-                  <div>{u.phone}</div>
-                  <div>{u.email ?? "—"}</div>
-                  <div>{formatDate(u.createdAt)}</div>
-                </div>
-              ))}
-
-              {filteredUsers.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-500">Нет пользователей.</div>
-              ) : null}
-            </div>
-          </SectionCard>
-        )}
-
-        {!loading && tab === "staff" && (
-          <SectionCard
-            title="Персонал"
-            subtitle="Сколько смен отработано"
-            right={<div className="text-sm text-slate-500">Всего: {filteredStaff.length}</div>}
-          >
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[1fr_180px_180px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <div>Сотрудник</div>
-                <div>Роль</div>
-                <div>Смен отработано</div>
-              </div>
-
-              {filteredStaff.map((s) => (
-                <div
-                  key={s.id}
-                  className="grid grid-cols-[1fr_180px_180px] border-t border-slate-200 px-4 py-3 text-sm text-slate-700"
-                >
-                  <div className="font-medium text-slate-900">{s.username}</div>
-                  <div>{s.role}</div>
-                  <div>{s.shiftsJoined}</div>
-                </div>
-              ))}
-
-              {filteredStaff.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-500">Нет данных по персоналу.</div>
-              ) : null}
-            </div>
-          </SectionCard>
-        )}
+        </div>
       </main>
 
       <ShiftDetailsDrawer
