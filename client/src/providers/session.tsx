@@ -11,6 +11,21 @@ import React, {
 import { storage } from "@/lib/storage";
 import { api } from "@/lib/api";
 
+type GuestSessionMeResponse =
+  | {
+      ok: true;
+      session: {
+        id: string;
+        table: { id: number; code: string; label: string | null };
+        shift: { id: string; status: string; openedAt: string; closedAt: string | null } | null;
+        startedAt: string;
+      };
+    }
+  | {
+      ok: false;
+      session: null;
+    };
+
 type SessionState = {
   tableCode: string | null;
   setTableCode: (code: string | null) => void;
@@ -50,9 +65,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       // 1) пробуем использовать существующую guest session
       try {
-        await api("/guest/me");
-        setSessionReady(true);
-        return;
+        const guestSession = await api<GuestSessionMeResponse>("/guest/me");
+        if (guestSession.ok && guestSession.session) {
+          setSessionReady(true);
+          return;
+        }
       } catch {
         // ignore
       }

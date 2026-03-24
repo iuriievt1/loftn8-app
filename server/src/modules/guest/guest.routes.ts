@@ -122,6 +122,48 @@ async function closePreviousSessionFromCookie(req: any) {
   }
 }
 
+async function resolveGuestSessionFromCookie(req: any) {
+  const gsid = (req.cookies?.gsid as string | undefined) ?? undefined;
+  if (!gsid) return null;
+
+  try {
+    const payload = jwt.verify(gsid, env.JWT_GUEST_SESSION_SECRET) as { sessionId: string };
+    const session = await prisma.guestSession.findUnique({
+      where: { id: payload.sessionId },
+      include: {
+        table: {
+          select: { id: true, code: true, label: true },
+        },
+        shift: {
+          select: { id: true, status: true, openedAt: true, closedAt: true },
+        },
+      },
+    });
+
+    if (!session || session.endedAt) return null;
+
+    const user = await resolveUserFromCookie(req);
+    if (user && session.userId !== user.id) {
+      return prisma.guestSession.update({
+        where: { id: session.id },
+        data: { userId: user.id },
+        include: {
+          table: {
+            select: { id: true, code: true, label: true },
+          },
+          shift: {
+            select: { id: true, status: true, openedAt: true, closedAt: true },
+          },
+        },
+      });
+    }
+
+    return session;
+  } catch {
+    return null;
+  }
+}
+
 guestRouter.post(
   "/session",
   validate(CreateSessionSchema),
@@ -185,31 +227,12 @@ guestRouter.post(
 
 guestRouter.get(
   "/me",
-  guestSessionAuth,
   asyncHandler(async (req, res) => {
-    const s = req.guestSession!;
-
-    const session = await prisma.guestSession.findUnique({
-      where: { id: s.id },
-      include: {
-        table: {
-          select: { id: true, code: true, label: true },
-        },
-        shift: {
-          select: { id: true, status: true, openedAt: true, closedAt: true },
-        },
-      },
-    });
-
+    const session = await resolveGuestSessionFromCookie(req);
     if (!session) {
-      throw new HttpError(401, "GUEST_SESSION_INVALID", "Guest session is invalid");
+      return res.json({ ok: false, session: null });
     }
 
-    if (session.endedAt) {
-      throw new HttpError(401, "GUEST_SESSION_ENDED", "Guest session ended");
-    }
-
-    // ✅ больше НЕ блокируем гостя из-за закрытой смены
     res.json({
       ok: true,
       session: {
