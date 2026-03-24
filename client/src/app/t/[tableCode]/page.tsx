@@ -26,7 +26,7 @@ function normalizeToCode(raw: string) {
 export default function TableEntry() {
   const params = useParams<{ tableCode: string }>();
   const router = useRouter();
-  const { setTableCode } = useSession();
+  const { setTableCode, restoreSession } = useSession();
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,6 +41,7 @@ export default function TableEntry() {
         });
 
         setTableCode(tableCode);
+        await restoreSession();
 
         const me = await api<AuthMeResponse>("/auth/guest/me").catch(() => ({
           authenticated: false,
@@ -53,7 +54,7 @@ export default function TableEntry() {
     };
 
     void run();
-  }, [params.tableCode, router, setTableCode]);
+  }, [params.tableCode, restoreSession, router, setTableCode]);
 
   return (
     <main className="mx-auto max-w-md px-4 pb-28 pt-5">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/providers/toast";
 import { useAuth } from "@/providers/auth";
+import { useSession } from "@/providers/session";
 
 type Mode = "register" | "login";
 type Step = "form" | "code";
@@ -33,6 +34,7 @@ export default function AuthPage() {
   const router = useRouter();
   const { push } = useToast();
   const { me, loading, refresh } = useAuth();
+  const { restoreSession } = useSession();
 
   const [mode, setMode] = useState<Mode>("register");
   const [step, setStep] = useState<Step>("form");
@@ -131,8 +133,9 @@ export default function AuthPage() {
     setShowAnonWarn(true);
   };
 
-  const doAnonContinue = () => {
+  const doAnonContinue = async () => {
     setShowAnonWarn(false);
+    await restoreSession().catch(() => {});
     router.replace("/menu");
   };
 

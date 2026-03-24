@@ -47,6 +47,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const setTableCode = (code: string | null) => {
     _setTableCode(code);
+    setSessionReady(false);
+    setSessionError(null);
     if (code) storage.set(TABLE_KEY, code);
     else storage.del(TABLE_KEY);
   };
@@ -107,6 +109,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     void restoreSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!tableCode) return;
+    if (sessionReady) return;
+    if (restoreInFlightRef.current) return;
+    void restoreSession();
+  }, [tableCode, sessionReady]);
 
   const value = useMemo(
     () => ({
