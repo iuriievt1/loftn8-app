@@ -341,7 +341,7 @@ export default function CartPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-white">Open tab</div>
-              <div className="mt-1 text-xs text-white/50">Everything already sent to the kitchen and bar</div>
+              <div className="mt-1 text-xs text-white/50">Order in a couple of clicks</div>
             </div>
 
             <button

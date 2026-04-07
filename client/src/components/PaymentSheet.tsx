@@ -41,7 +41,7 @@ export function PaymentSheet({
           </button>
         ) : (
           <div className="mt-3 rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/55">
-            Cashback available after midnight
+            No cashback available yet
           </div>
         )}
 

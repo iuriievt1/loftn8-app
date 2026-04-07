@@ -5,7 +5,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { HttpError } from "../../utils/httpError";
 import { validate } from "../../middleware/validate";
 import { requireStaffAuth } from "./staff.middleware";
-import { effectiveAvailableAt, nextPragueMidnight, summarizeLoyalty } from "../../utils/loyalty";
+import { effectiveAvailableAt, summarizeLoyalty } from "../../utils/loyalty";
 import type {
   CallType,
   CallStatus,
@@ -566,7 +566,7 @@ staffDashboardRouter.post(
                 update: {
                   baseAmountCzk: amountCzk,
                   cashbackCzk,
-                  availableAt: nextPragueMidnight(new Date()),
+                  availableAt: new Date(),
                 },
                 create: {
                   venueId,
@@ -575,7 +575,7 @@ staffDashboardRouter.post(
                   paymentConfirmationId: confirmation.id,
                   baseAmountCzk: amountCzk,
                   cashbackCzk,
-                  availableAt: nextPragueMidnight(new Date()),
+                  availableAt: new Date(),
                 },
               })
             : null;
