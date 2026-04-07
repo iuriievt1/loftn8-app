@@ -101,7 +101,7 @@ authRouter.post(
 
     await prisma.otpCode.create({ data: { phone, codeHash, expiresAt } });
 
-    // DEMO / TEST MODE — всегда возвращаем код на UI
+    // DEMO/TEST MODE
     console.log(`[OTP DEMO] phone=${phone} code=${code}`);
     return res.json({
       ok: true,

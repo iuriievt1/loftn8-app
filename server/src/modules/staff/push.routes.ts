@@ -10,7 +10,7 @@ import { env } from "../../config/env";
 
 export const staffPushRouter = Router();
 
-// public key (без авторизации)
+// public key
 staffPushRouter.get(
   "/vapid-public-key",
   asyncHandler(async (_req, res) => {
@@ -74,7 +74,7 @@ staffPushRouter.post(
   })
 );
 
-// статус подписки
+// status
 staffPushRouter.get(
   "/me",
   requireStaffAuth,
@@ -102,7 +102,7 @@ const devSendHandler = asyncHandler(async (req, res) => {
   const body = (req.body as any)?.body ?? `Hello from server • ${new Date().toLocaleString()}`;
   const url = (req.body as any)?.url ?? "/staff/summary";
 
-  // ✅ tag делаем уникальным, иначе тест-пуш “слипается”
+  // tag push
   const { sent, failed, removed } = await pushToStaff(staffId, {
     title,
     body,
@@ -114,6 +114,6 @@ const devSendHandler = asyncHandler(async (req, res) => {
   res.json({ ok: true, sent, failed, removed });
 });
 
-// оставляем оба пути (чтобы ничего не ломать)
+
 staffPushRouter.post("/dev/send-test", requireStaffAuth, validate(TestSendSchema), devSendHandler);
 staffPushRouter.post("/test-send", requireStaffAuth, validate(TestSendSchema), devSendHandler);

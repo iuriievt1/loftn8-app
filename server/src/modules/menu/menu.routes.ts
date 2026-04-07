@@ -33,7 +33,7 @@ menuRouter.get(
           name: i.name,
           description: i.description,
           priceCzk: i.priceCzk,
-          imageUrl: (i as any).imageUrl ?? null, // ✅ return it
+          imageUrl: (i as any).imageUrl ?? null, //return it
         })),
       })),
     });

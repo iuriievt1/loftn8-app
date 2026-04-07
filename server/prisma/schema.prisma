@@ -194,6 +194,8 @@ model PaymentRequest {
   sessionId          String
   tableId            Int
   method             PaymentMethod
+  useLoyalty         Boolean              @default(false)
+  loyaltyAppliedCzk  Int                  @default(0)
   status             PaymentStatus        @default(PENDING)
   createdAt          DateTime             @default(now())
   confirmedAt        DateTime?
@@ -245,6 +247,7 @@ model PaymentConfirmation {
   userId           String?
   method           PaymentMethod
   amountCzk        Int
+  loyaltyAppliedCzk Int                @default(0)
   createdAt        DateTime            @default(now())
   loyaltyTxn       LoyaltyTransaction?
   paymentRequest   PaymentRequest      @relation(fields: [paymentRequestId], references: [id])
@@ -261,6 +264,10 @@ model LoyaltyTransaction {
   paymentConfirmationId String              @unique
   baseAmountCzk         Int
   cashbackCzk           Int
+  availableAt           DateTime            @default(now())
+  redeemedAmountCzk     Int                 @default(0)
+  redeemedAt            DateTime?
+  redeemedInPaymentConfirmationId String?
   createdAt             DateTime            @default(now())
   paymentConfirmation   PaymentConfirmation @relation(fields: [paymentConfirmationId], references: [id])
   staff                 StaffUser           @relation(fields: [staffId], references: [id])

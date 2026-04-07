@@ -10,6 +10,8 @@ import { notifyOrderCreated } from "../staff/push.service";
 
 export const ordersRouter = Router();
 
+const OPEN_ORDER_STATUSES = ["NEW", "ACCEPTED", "IN_PROGRESS"] as const;
+
 const CreateOrderSchema = z.object({
   comment: z.string().max(500).optional(),
   items: z
@@ -58,6 +60,15 @@ async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
   };
 }
 
+function mergeOrderComment(current?: string | null, incoming?: string | null) {
+  const left = String(current ?? "").trim();
+  const right = String(incoming ?? "").trim();
+
+  if (!left) return right || null;
+  if (!right || left === right) return left;
+  return `${left} | ${right}`;
+}
+
 ordersRouter.post(
   "/",
   guestSessionAuth,
@@ -82,29 +93,77 @@ ordersRouter.post(
 
     const priceMap = new Map(menuItems.map((m) => [m.id, m.priceCzk]));
 
-    const order = await prisma.order.create({
-      data: {
-        sessionId: session.id,
-        tableId: session.tableId,
-        userId: user.id,
-        comment: body.comment,
-        items: {
-          create: body.items.map((it) => ({
-            menuItemId: it.menuItemId,
-            qty: it.qty,
-            comment: it.comment,
-            priceCzk: priceMap.get(it.menuItemId)!,
-          })),
+    const order = await prisma.$transaction(async (tx) => {
+      const latestConfirmedPayment = await (tx as any).paymentRequest.findFirst({
+        where: {
+          sessionId: session.id,
+          status: "CONFIRMED",
         },
-      },
-      include: { items: true },
+        orderBy: { confirmedAt: "desc" },
+        select: {
+          confirmedAt: true,
+          createdAt: true,
+        },
+      });
+
+      const paidThroughAt = latestConfirmedPayment?.confirmedAt ?? latestConfirmedPayment?.createdAt ?? null;
+      const existingOpenOrder = await tx.order.findFirst({
+        where: {
+          sessionId: session.id,
+          status: { in: [...OPEN_ORDER_STATUSES] },
+          ...(paidThroughAt
+            ? {
+                createdAt: {
+                  gt: paidThroughAt,
+                },
+              }
+            : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          comment: true,
+        },
+      });
+
+      const nextItems = body.items.map((it) => ({
+        menuItemId: it.menuItemId,
+        qty: it.qty,
+        comment: it.comment,
+        priceCzk: priceMap.get(it.menuItemId)!,
+      }));
+
+      if (existingOpenOrder) {
+        return tx.order.update({
+          where: { id: existingOpenOrder.id },
+          data: {
+            userId: user.id,
+            comment: mergeOrderComment(existingOpenOrder.comment, body.comment),
+            items: {
+              create: nextItems,
+            },
+          },
+          include: { items: true },
+        });
+      }
+
+      return tx.order.create({
+        data: {
+          sessionId: session.id,
+          tableId: session.tableId,
+          userId: user.id,
+          comment: body.comment,
+          items: {
+            create: nextItems,
+          },
+        },
+        include: { items: true },
+      });
     });
 
-    try {
-      await notifyOrderCreated(order.id);
-    } catch (e) {
+    void notifyOrderCreated(order.id).catch((e) => {
       console.warn("push notifyOrderCreated failed", e);
-    }
+    });
 
     res.json({ ok: true, order });
   })

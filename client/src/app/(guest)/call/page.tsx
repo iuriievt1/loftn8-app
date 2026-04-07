@@ -1,24 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/providers/toast";
 import { RequireTable } from "@/components/RequireTable";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { RatingSheet } from "@/components/RatingSheet";
 import { useAuth } from "@/providers/auth";
+import { useGuestFeed } from "@/providers/guestFeed";
 
 const GOOGLE_REVIEW_URL = process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL;
+
+function requestStatusText(status?: "NEW" | "ACKED" | "DONE") {
+  if (status === "ACKED") return "On the way";
+  if (status === "NEW") return "Request sent";
+  return undefined;
+}
+
+function paymentStatusText(status?: "PENDING" | "CONFIRMED" | "CANCELLED") {
+  if (status === "PENDING") return "Payment requested";
+  return undefined;
+}
+
+function messageStatusCopy(status?: "NEW" | "ACKED" | "DONE") {
+  if (status === "ACKED") return "Your message was seen and taken into work.";
+  if (status === "DONE") return "Your message thread was marked as completed.";
+  if (status === "NEW") return "Your message was sent to the staff.";
+  return "";
+}
 
 function ActionCard({
   title,
   subtitle,
+  statusText,
   icon,
   disabled,
   onClick,
 }: {
   title: string;
   subtitle: string;
+  statusText?: string;
   icon: React.ReactNode;
   disabled?: boolean;
   onClick: () => void;
@@ -33,6 +54,7 @@ function ActionCard({
         <div>
           <div className="text-sm font-semibold text-white">{title}</div>
           <div className="mt-1 text-xs text-white/60">{subtitle}</div>
+          {statusText ? <div className="mt-2 text-xs font-medium text-emerald-300">{statusText}</div> : null}
         </div>
         <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-black/30">
           {icon}
@@ -80,13 +102,48 @@ function SmallIcon({ name }: { name: "user" | "zap" | "card" }) {
 export default function CallPage() {
   const { me, loading } = useAuth();
   const canRate = !loading && !!me?.authenticated;
+  const { feed, refresh } = useGuestFeed();
 
   const [msg, setMsg] = useState("");
   const [cooldown, setCooldown] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [useLoyalty, setUseLoyalty] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
+  const [doneFlash, setDoneFlash] = useState<Record<string, boolean>>({});
+  const prevStatusesRef = useRef<Record<string, "NEW" | "ACKED" | "DONE">>({});
 
   const { push } = useToast();
+
+  const latestWaiter = feed?.calls.find((call) => call.type === "WAITER");
+  const latestHookah = feed?.calls.find((call) => call.type === "HOOKAH");
+  const latestPayment = feed?.payments.find((payment) => payment.status === "PENDING");
+  const latestMessage = feed?.calls.find((call) => call.type === "HELP");
+  const availablePointsCzk = feed?.loyalty?.availableCzk ?? 0;
+
+  useEffect(() => {
+    const nextStatuses: Record<string, "NEW" | "ACKED" | "DONE"> = {};
+
+    for (const key of ["WAITER", "HOOKAH", "BILL", "HELP"] as const) {
+      const latest = feed?.calls.find((call) => call.type === key);
+      if (!latest) continue;
+
+      nextStatuses[key] = latest.status;
+      const prev = prevStatusesRef.current[key];
+      if (prev && prev !== "DONE" && latest.status === "DONE") {
+        setDoneFlash((current) => ({ ...current, [key]: true }));
+        window.setTimeout(() => {
+          setDoneFlash((current) => ({ ...current, [key]: false }));
+        }, 1800);
+      }
+    }
+
+    prevStatusesRef.current = nextStatuses;
+  }, [feed]);
+
+  const waiterStatus = doneFlash.WAITER ? "Done" : requestStatusText(latestWaiter?.status);
+  const hookahStatus = doneFlash.HOOKAH ? "Done" : requestStatusText(latestHookah?.status);
+  const paymentStatus = paymentStatusText(latestPayment?.status);
+  const messageStatus = doneFlash.HELP ? "Done" : requestStatusText(latestMessage?.status);
 
   const send = async (type: string, message?: string) => {
     if (cooldown) return;
@@ -97,11 +154,12 @@ export default function CallPage() {
         method: "POST",
         body: JSON.stringify({ type, message: message || undefined }),
       });
+      await refresh();
 
       push({
         kind: "success",
         title: "Sent",
-        message: "The staff can already see your table",
+        message: "The staff can already see your table.",
       });
 
       setMsg("");
@@ -118,18 +176,29 @@ export default function CallPage() {
 
   const requestPayment = async (method: "CARD" | "CASH") => {
     setPayOpen(false);
+    if (cooldown) return;
+    setCooldown(true);
 
-    await send("BILL", `PAYMENT_METHOD:${method}`);
-
-    if (canRate) {
-      setRatingOpen(true);
-    } else {
-      push({
-        kind: "info",
-        title: "Rating is available after sign in",
-        message: "Please sign in or register to leave a rating.",
-        action: { label: "Sign in", href: "/auth" },
+    try {
+      await api("/payments/request", {
+        method: "POST",
+        body: JSON.stringify({ method, useLoyalty: availablePointsCzk > 0 ? useLoyalty : false }),
       });
+      await refresh();
+
+      push({
+        kind: "success",
+        title: "Payment requested",
+        message: method === "CARD" ? "A staff member will come with the terminal." : "A staff member will come for cash payment.",
+      });
+    } catch (e: any) {
+      push({
+        kind: "error",
+        title: "Error",
+        message: e?.message ?? "Failed",
+      });
+    } finally {
+      window.setTimeout(() => setCooldown(false), 1400);
     }
   };
 
@@ -190,6 +259,7 @@ export default function CallPage() {
             disabled={cooldown}
             title="Call waiter"
             subtitle="Quick request"
+            statusText={waiterStatus}
             icon={<SmallIcon name="user" />}
             onClick={() => send("WAITER")}
           />
@@ -198,6 +268,7 @@ export default function CallPage() {
             disabled={cooldown}
             title="Urgent hookah service"
             subtitle="Quick request"
+            statusText={hookahStatus}
             icon={<SmallIcon name="zap" />}
             onClick={() => send("HOOKAH")}
           />
@@ -206,6 +277,7 @@ export default function CallPage() {
             disabled={cooldown}
             title="Payment"
             subtitle="Card / Cash"
+            statusText={paymentStatus}
             icon={<SmallIcon name="card" />}
             onClick={() => setPayOpen(true)}
           />
@@ -231,12 +303,24 @@ export default function CallPage() {
           >
             Send
           </button>
+
+          {latestMessage ? (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/70">
+              <div className="font-medium text-white">{messageStatus ?? "Message sent"}</div>
+              <div className="mt-1">
+                {doneFlash.HELP ? "This request has been completed." : messageStatusCopy(latestMessage.status)}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <PaymentSheet
           open={payOpen}
           onClose={() => setPayOpen(false)}
           onPick={requestPayment}
+          availablePointsCzk={availablePointsCzk}
+          useLoyalty={useLoyalty}
+          onToggleLoyalty={setUseLoyalty}
         />
 
         <RatingSheet

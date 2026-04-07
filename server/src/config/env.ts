@@ -14,8 +14,8 @@ const EnvSchema = z.object({
 
   COOKIE_DOMAIN: z.string().optional().or(z.literal("")).optional(),
 
-  // ✅ Web Push (VAPID)
-  VAPID_SUBJECT: z.string().optional(),      // например: "mailto:dev@loftn8.com"
+  //Web Push
+  VAPID_SUBJECT: z.string().optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
 });

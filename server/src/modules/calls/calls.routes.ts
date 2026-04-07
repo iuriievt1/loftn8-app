@@ -68,11 +68,9 @@ callsRouter.post(
       },
     });
 
-    try {
-      await notifyCallCreated(call.id);
-    } catch (e) {
+    void notifyCallCreated(call.id).catch((e) => {
       console.warn("push notifyCallCreated failed", e);
-    }
+    });
 
     res.json({ ok: true, call });
   })

@@ -251,6 +251,11 @@ export type StaffPayment = {
   status: PaymentStatus;
   method: PaymentMethod;
   createdAt: string;
+  billTotalCzk: number;
+  paidAmountCzk: number;
+  requestedAmountCzk: number;
+  useLoyalty: boolean;
+  loyaltyAppliedCzk: number;
   table: { code: string; label: string | null };
   session: {
     id: string;
@@ -266,10 +271,10 @@ export async function listPayments(status: PaymentStatus): Promise<ApiResult<{ p
   ).then((r) => (r.ok ? { ok: true, data: { payments: r.data.payments } } : r));
 }
 
-export async function confirmPayment(id: string, amountCzk: number): Promise<ApiResult<any>> {
+export async function confirmPayment(id: string): Promise<ApiResult<any>> {
   return tryPaths<any>(
     [`/staff/dashboard/payments/${id}/confirm`, `/staff/payments/${id}/confirm`],
-    { method: "POST", body: JSON.stringify({ amountCzk }) }
+    { method: "POST", body: JSON.stringify({}) }
   );
 }
 

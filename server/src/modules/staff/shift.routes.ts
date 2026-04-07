@@ -8,7 +8,7 @@ export const staffShiftRouter = Router();
 
 staffShiftRouter.use(requireStaffAuth);
 
-// текущая активная смена для staff venue
+// staff venue
 staffShiftRouter.get(
   "/current",
   asyncHandler(async (req, res) => {
@@ -41,7 +41,7 @@ staffShiftRouter.get(
   })
 );
 
-// менеджер открывает общую смену
+// manager open
 staffShiftRouter.post(
   "/open",
   requireStaffRole(["MANAGER"]),
@@ -87,7 +87,7 @@ staffShiftRouter.post(
   })
 );
 
-// staff входит в активную смену
+// staff join
 staffShiftRouter.post(
   "/join",
   asyncHandler(async (req, res) => {
@@ -128,7 +128,7 @@ staffShiftRouter.post(
   })
 );
 
-// staff выходит из активной смены (менеджера обычно не трогаем, но route общий)
+// staff leave
 staffShiftRouter.post(
   "/leave",
   asyncHandler(async (req, res) => {
@@ -169,7 +169,7 @@ staffShiftRouter.post(
   })
 );
 
-// менеджер закрывает смену всем
+// manager close
 staffShiftRouter.post(
   "/close",
   requireStaffRole(["MANAGER"]),

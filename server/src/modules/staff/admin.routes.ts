@@ -183,7 +183,6 @@ staffAdminRouter.get(
   })
 );
 
-// СПИСОК СМЕН
 staffAdminRouter.get(
   "/shifts",
   asyncHandler(async (req, res) => {
@@ -228,7 +227,6 @@ staffAdminRouter.get(
   })
 );
 
-// ДЕТАЛИ СМЕНЫ
 staffAdminRouter.get(
   "/shifts/:id",
   asyncHandler(async (req, res) => {
@@ -336,7 +334,7 @@ staffAdminRouter.get(
   })
 );
 
-// ОЦЕНКИ
+
 staffAdminRouter.get(
   "/ratings",
   asyncHandler(async (req, res) => {
@@ -371,7 +369,7 @@ staffAdminRouter.get(
   })
 );
 
-// ПОЛЬЗОВАТЕЛИ
+
 staffAdminRouter.get(
   "/users",
   asyncHandler(async (req, res) => {
@@ -405,7 +403,7 @@ staffAdminRouter.get(
   })
 );
 
-// ГОСТИ / СЕССИИ
+
 staffAdminRouter.get(
   "/guest-sessions",
   asyncHandler(async (req, res) => {
@@ -465,7 +463,7 @@ staffAdminRouter.get(
   })
 );
 
-// ЗАКАЗЫ
+
 staffAdminRouter.get(
   "/orders",
   asyncHandler(async (req, res) => {
@@ -521,7 +519,7 @@ staffAdminRouter.get(
   })
 );
 
-// ВЫЗОВЫ
+
 staffAdminRouter.get(
   "/calls",
   asyncHandler(async (req, res) => {
@@ -555,7 +553,7 @@ staffAdminRouter.get(
   })
 );
 
-// ОПЛАТЫ
+
 staffAdminRouter.get(
   "/payments",
   asyncHandler(async (req, res) => {
@@ -599,7 +597,7 @@ staffAdminRouter.get(
   })
 );
 
-// ПЕРСОНАЛ
+
 staffAdminRouter.get(
   "/staff-performance",
   asyncHandler(async (req, res) => {

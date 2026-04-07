@@ -10,13 +10,13 @@ import { useToast } from "@/providers/toast";
 const STATUSES: PaymentStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
 
 function statusLabel(s: PaymentStatus) {
-  if (s === "PENDING") return "Ожидают";
-  if (s === "CONFIRMED") return "Подтверждены";
-  return "Отменены";
+  if (s === "PENDING") return "Pending";
+  if (s === "CONFIRMED") return "Confirmed";
+  return "Cancelled";
 }
 
 function methodLabel(m: StaffPayment["method"]) {
-  return m === "CARD" ? "Карта" : "Наличные";
+  return m === "CARD" ? "Card" : "Cash";
 }
 
 const card =
@@ -77,28 +77,19 @@ export default function StaffPaymentsPage() {
   });
 
   const onConfirm = async (id: string) => {
-    const raw = prompt("Введите сумму в Kč");
-    if (!raw) return;
-
-    const amount = Number(raw.replace(",", "."));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      push({ kind: "error", title: "Ошибка", message: "Неверная сумма" });
-      return;
-    }
-
     setBusyId(id);
-    const r = await confirmPayment(id, Math.floor(amount));
+    const r = await confirmPayment(id);
     setBusyId(null);
 
     if (!r.ok) {
-      push({ kind: "error", title: "Ошибка", message: r.error });
+      push({ kind: "error", title: "Error", message: r.error });
       return;
     }
 
     push({
       kind: "success",
-      title: "Оплата подтверждена",
-      message: `${Math.floor(amount)} Kč`,
+      title: "Payment confirmed",
+      message: "The bill was closed successfully.",
     });
 
     await load({ silent: false });
@@ -109,16 +100,16 @@ export default function StaffPaymentsPage() {
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xl font-semibold text-white">Оплаты</div>
+            <div className="text-xl font-semibold text-white">Payments</div>
             <div className="mt-1 text-xs text-white/50">
-              Автообновление: {isRunning ? "включено" : "выключено"}
+              Auto refresh: {isRunning ? "on" : "off"}
               {last ? ` • ${new Date(last).toLocaleTimeString()}` : ""}
             </div>
-            <div className="mt-2 text-xs text-white/60">Запросов: {payments.length}</div>
+            <div className="mt-2 text-xs text-white/60">Requests: {payments.length}</div>
           </div>
 
           <button className={btnGhost} onClick={() => void tick()}>
-            Обновить
+            Refresh
           </button>
         </div>
 
@@ -146,7 +137,7 @@ export default function StaffPaymentsPage() {
         ) : null}
       </div>
 
-      {loading ? <div className="mt-4 text-sm text-white/60">Загрузка…</div> : null}
+      {loading ? <div className="mt-4 text-sm text-white/60">Loading…</div> : null}
 
       <div className="mt-4 space-y-3">
         {payments.map((p) => (
@@ -158,7 +149,7 @@ export default function StaffPaymentsPage() {
                 </div>
 
                 <div className="mt-1 text-lg font-semibold text-white">
-                  Стол {p.table.code}
+                  Table {p.table.code}
                   {p.table.label ? ` • ${p.table.label}` : ""}
                 </div>
 
@@ -167,7 +158,24 @@ export default function StaffPaymentsPage() {
                 <div className="mt-1 text-sm text-white/60">
                   {p.session?.user
                     ? `${p.session.user.name} • ${p.session.user.phone}`
-                    : "Гость без аккаунта"}
+                    : "Guest without account"}
+                </div>
+
+                <div className="mt-3 grid gap-1 text-sm">
+                  <div className="flex items-center justify-between gap-3 text-white/70">
+                    <span>Bill total</span>
+                    <span className="font-semibold text-white">{p.billTotalCzk} Kč</span>
+                  </div>
+                  {p.useLoyalty && p.loyaltyAppliedCzk > 0 ? (
+                    <div className="flex items-center justify-between gap-3 text-emerald-300/90">
+                      <span>Cashback used</span>
+                      <span className="font-semibold">{p.loyaltyAppliedCzk} Kč</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between gap-3 text-white/70">
+                    <span>{p.status === "CONFIRMED" ? "Paid" : "To pay"}</span>
+                    <span className="font-semibold text-white">{p.requestedAmountCzk} Kč</span>
+                  </div>
                 </div>
               </div>
 
@@ -177,7 +185,7 @@ export default function StaffPaymentsPage() {
                   disabled={busyId === p.id}
                   onClick={() => void onConfirm(p.id)}
                 >
-                  {busyId === p.id ? "Сохраняем…" : "Подтвердить"}
+                  {busyId === p.id ? "Saving…" : "Confirm payment"}
                 </button>
               ) : null}
             </div>
@@ -185,7 +193,7 @@ export default function StaffPaymentsPage() {
         ))}
 
         {!loading && payments.length === 0 ? (
-          <div className={`${card} text-sm text-white/60`}>Нет оплат в этом разделе.</div>
+          <div className={`${card} text-sm text-white/60`}>No payments in this section.</div>
         ) : null}
       </div>
     </div>

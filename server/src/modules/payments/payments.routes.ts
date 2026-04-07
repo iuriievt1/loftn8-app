@@ -4,14 +4,15 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
-import { requireUser } from "../../middleware/auth/requireUser";
 import { notifyPaymentRequested } from "../staff/push.service";
 import { HttpError } from "../../utils/httpError";
+import { summarizeLoyalty } from "../../utils/loyalty";
 
 export const paymentsRouter = Router();
 
 const RequestPaymentSchema = z.object({
   method: z.enum(["CARD", "CASH"]),
+  useLoyalty: z.boolean().optional(),
 });
 
 async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
@@ -52,27 +53,66 @@ async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
 paymentsRouter.post(
   "/request",
   guestSessionAuth,
-  requireUser,
   validate(RequestPaymentSchema),
   asyncHandler(async (req, res) => {
     const session = req.guestSession!;
     await attachSessionToActiveShiftIfNeeded(session.id);
 
     const body = req.body as z.infer<typeof RequestPaymentSchema>;
+    const sessionWithUser = await prisma.guestSession.findUnique({
+      where: { id: session.id },
+      select: {
+        userId: true,
+        user: {
+          select: {
+            loyaltyTransactions: {
+              select: {
+                cashbackCzk: true,
+                redeemedAmountCzk: true,
+                availableAt: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-    const payment = await prisma.paymentRequest.create({
+    const loyalty = summarizeLoyalty(sessionWithUser?.user?.loyaltyTransactions ?? []);
+    const canUseLoyalty = Boolean(body.useLoyalty) && loyalty.availableCzk > 0;
+
+    const existing = await prisma.paymentRequest.findFirst({
+      where: {
+        sessionId: session.id,
+        status: "PENDING",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existing) {
+      const updatedExisting = await (prisma as any).paymentRequest.update({
+        where: { id: existing.id },
+        data: {
+          method: body.method,
+          useLoyalty: canUseLoyalty,
+        },
+      });
+
+      return res.json({ ok: true, payment: updatedExisting });
+    }
+
+    const payment = await (prisma as any).paymentRequest.create({
       data: {
         sessionId: session.id,
         tableId: session.tableId,
         method: body.method,
+        useLoyalty: canUseLoyalty,
       },
     });
 
-    try {
-      await notifyPaymentRequested(payment.id);
-    } catch (e) {
+    void notifyPaymentRequested(payment.id).catch((e) => {
       console.warn("push notifyPaymentRequested failed", e);
-    }
+    });
 
     res.json({ ok: true, payment });
   })

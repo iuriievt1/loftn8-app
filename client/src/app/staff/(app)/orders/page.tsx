@@ -10,17 +10,17 @@ import { useToast } from "@/providers/toast";
 const STATUSES: OrderStatus[] = ["NEW", "ACCEPTED", "IN_PROGRESS", "DELIVERED", "CANCELLED"];
 
 function statusLabel(s: OrderStatus) {
-  if (s === "NEW") return "Новые";
-  if (s === "ACCEPTED") return "Приняты";
-  if (s === "IN_PROGRESS") return "Готовятся";
-  if (s === "DELIVERED") return "Готово";
-  return "Отменены";
+  if (s === "NEW") return "New";
+  if (s === "ACCEPTED") return "Accepted";
+  if (s === "IN_PROGRESS") return "Preparing";
+  if (s === "DELIVERED") return "Ready";
+  return "Cancelled";
 }
 
 function nextAction(s: OrderStatus) {
-  if (s === "NEW") return { status: "ACCEPTED" as OrderStatus, label: "Принять" };
-  if (s === "ACCEPTED") return { status: "IN_PROGRESS" as OrderStatus, label: "В работу" };
-  if (s === "IN_PROGRESS") return { status: "DELIVERED" as OrderStatus, label: "Готово" };
+  if (s === "NEW") return { status: "IN_PROGRESS" as OrderStatus, label: "Start preparing" };
+  if (s === "ACCEPTED") return { status: "IN_PROGRESS" as OrderStatus, label: "Start preparing" };
+  if (s === "IN_PROGRESS") return { status: "DELIVERED" as OrderStatus, label: "Mark as ready" };
   return null;
 }
 
@@ -105,18 +105,18 @@ export default function StaffOrdersPage() {
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xl font-semibold text-white">Заказы</div>
+            <div className="text-xl font-semibold text-white">Orders</div>
             <div className="mt-1 text-xs text-white/50">
-              Автообновление: {isRunning ? "включено" : "выключено"}
+              Auto refresh: {isRunning ? "on" : "off"}
               {last ? ` • ${new Date(last).toLocaleTimeString()}` : ""}
             </div>
             <div className="mt-2 text-xs text-white/60">
-              Заказов: {orders.length} • Позиций: {totalItems}
+              Orders: {orders.length} • Items: {totalItems}
             </div>
           </div>
 
           <button className={btnGhost} onClick={() => void tick()}>
-            Обновить
+            Refresh
           </button>
         </div>
 
@@ -137,14 +137,14 @@ export default function StaffOrdersPage() {
           ))}
         </div>
 
-        {err ? (
+            {err ? (
           <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
             {err}
           </div>
         ) : null}
       </div>
 
-      {loading ? <div className="mt-4 text-sm text-white/60">Загрузка…</div> : null}
+      {loading ? <div className="mt-4 text-sm text-white/60">Loading…</div> : null}
 
       <div className="mt-4 space-y-3">
         {orders.map((o) => {
@@ -167,19 +167,19 @@ export default function StaffOrdersPage() {
                   <div className="mt-1 text-sm text-white/70">
                     {o.session?.user
                       ? `${o.session.user.name} • ${o.session.user.phone}`
-                      : "Гость без аккаунта"}
+                      : "Guest without account"}
                   </div>
                 </div>
 
                 <div className="shrink-0 text-right">
-                  <div className="text-xs text-white/50">Сумма</div>
+                  <div className="text-xs text-white/50">Amount</div>
                   <div className="mt-1 text-lg font-semibold text-white">{sum} Kč</div>
                 </div>
               </div>
 
               {o.comment ? (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-white/85">
-                  Комментарий к заказу: {o.comment}
+                  Order comment: {o.comment}
                 </div>
               ) : null}
 
@@ -194,7 +194,7 @@ export default function StaffOrdersPage() {
                         {it.menuItem.name} × {it.qty}
                       </div>
                       {it.comment ? (
-                        <div className="mt-1 text-xs text-white/60">Комментарий: {it.comment}</div>
+                        <div className="mt-1 text-xs text-white/60">Comment: {it.comment}</div>
                       ) : null}
                     </div>
 
@@ -208,21 +208,17 @@ export default function StaffOrdersPage() {
               <div className="mt-4 grid grid-cols-1 gap-2">
                 {action ? (
                   <button
-                    className={action.status === "ACCEPTED" ? btnPrimary : btn}
+                    className={action.status === "IN_PROGRESS" ? btnPrimary : btn}
                     disabled={busyId === o.id}
                     onClick={() =>
                       void setTo(
                         o.id,
                         action.status,
-                        action.status === "ACCEPTED"
-                          ? "Заказ принят"
-                          : action.status === "IN_PROGRESS"
-                          ? "Заказ переведён в работу"
-                          : "Заказ отмечен как готовый"
+                        action.status === "IN_PROGRESS" ? "Order moved to preparing" : "Order marked as ready"
                       )
                     }
                   >
-                    {busyId === o.id ? "Сохраняем…" : action.label}
+                    {busyId === o.id ? "Saving…" : action.label}
                   </button>
                 ) : null}
 
@@ -230,9 +226,9 @@ export default function StaffOrdersPage() {
                   <button
                     className={btnGhost}
                     disabled={busyId === o.id}
-                    onClick={() => void setTo(o.id, "CANCELLED", "Заказ отменён")}
+                    onClick={() => void setTo(o.id, "CANCELLED", "Order cancelled")}
                   >
-                    Отменить заказ
+                    Cancel order
                   </button>
                 ) : null}
               </div>
@@ -241,7 +237,7 @@ export default function StaffOrdersPage() {
         })}
 
         {!loading && orders.length === 0 ? (
-          <div className={`${card} text-sm text-white/60`}>Нет заказов в этом разделе.</div>
+          <div className={`${card} text-sm text-white/60`}>No orders in this section.</div>
         ) : null}
       </div>
     </div>

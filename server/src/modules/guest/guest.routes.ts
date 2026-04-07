@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import type { CallStatus, CallType, OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { env } from "../../config/env";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { HttpError } from "../../utils/httpError";
 import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
+import { summarizeLoyalty } from "../../utils/loyalty";
 
 export const guestRouter = Router();
 
@@ -189,6 +191,129 @@ function toGuestSessionResponse(
   };
 }
 
+function orderStatusView(status: OrderStatus) {
+  if (status === "NEW") {
+    return {
+      title: "Order sent",
+      description: "Your order was sent to the staff team and is waiting for confirmation.",
+      tone: "info" as const,
+      step: 1,
+    };
+  }
+
+  if (status === "ACCEPTED") {
+    return {
+      title: "Order accepted",
+      description: "The staff has accepted your order.",
+      tone: "success" as const,
+      step: 2,
+    };
+  }
+
+  if (status === "IN_PROGRESS") {
+    return {
+      title: "Preparing",
+      description: "Your order is being prepared right now.",
+      tone: "success" as const,
+      step: 3,
+    };
+  }
+
+  if (status === "DELIVERED") {
+    return {
+      title: "Ready",
+      description: "Your order is ready or already on the table.",
+      tone: "success" as const,
+      step: 4,
+    };
+  }
+
+  return {
+    title: "Cancelled",
+    description: "This order was cancelled by the staff.",
+    tone: "error" as const,
+    step: 0,
+  };
+}
+
+function callTypeLabel(type: CallType) {
+  if (type === "WAITER") return "Waiter";
+  if (type === "HOOKAH") return "Hookah service";
+  if (type === "BILL") return "Payment";
+  return "Message";
+}
+
+function callStatusView(type: CallType, status: CallStatus, message?: string | null) {
+  if (status === "NEW") {
+    return {
+      title: `${callTypeLabel(type)} requested`,
+      description:
+        type === "BILL"
+          ? "Your payment request was sent to the staff."
+          : "Your request was sent to the staff.",
+      tone: "info" as const,
+    };
+  }
+
+  if (status === "ACKED") {
+    return {
+      title: "On the way",
+      description:
+        type === "WAITER"
+          ? "A waiter has seen your request and is already coming to your table."
+          : type === "HOOKAH"
+          ? "A hookah specialist has seen your request and is already coming to your table."
+          : type === "BILL"
+          ? "Your payment request was accepted and a staff member is on the way."
+          : message
+          ? "Your message was seen and taken into work."
+          : "Your request was accepted by the staff.",
+      tone: "success" as const,
+    };
+  }
+
+  return {
+    title: "Done",
+    description:
+      type === "BILL"
+        ? "Your payment request was marked as completed."
+        : "This request was marked as completed by the staff.",
+    tone: "success" as const,
+  };
+}
+
+function paymentMethodLabel(method: PaymentMethod) {
+  return method === "CARD" ? "Card" : "Cash";
+}
+
+function paymentStatusView(
+  method: PaymentMethod,
+  status: PaymentStatus,
+  amountCzk?: number | null
+) {
+  if (status === "PENDING") {
+    return {
+      title: "Payment requested",
+      description: `Waiting for staff: ${paymentMethodLabel(method)}.`,
+      tone: "info" as const,
+    };
+  }
+
+  if (status === "CONFIRMED") {
+    return {
+      title: "Payment confirmed",
+      description: amountCzk ? `Confirmed for ${amountCzk} Kč.` : "The payment was confirmed by the staff.",
+      tone: "success" as const,
+    };
+  }
+
+  return {
+    title: "Payment cancelled",
+    description: "This payment request was cancelled.",
+    tone: "error" as const,
+  };
+}
+
 guestRouter.post(
   "/session",
   validate(CreateSessionSchema),
@@ -314,6 +439,220 @@ guestRouter.get(
         shift: session.shift ?? null,
         startedAt: session.startedAt,
       },
+    });
+  })
+);
+
+guestRouter.get(
+  "/feed",
+  guestSessionAuth,
+  asyncHandler(async (req, res) => {
+    const session = req.guestSession!;
+
+    const [orders, calls, payments, loyaltyTransactions] = await Promise.all([
+      prisma.order.findMany({
+        where: { sessionId: session.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          items: {
+            include: {
+              menuItem: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.staffCall.findMany({
+        where: { sessionId: session.id },
+        orderBy: { createdAt: "desc" },
+      }),
+      (prisma as any).paymentRequest.findMany({
+        where: { sessionId: session.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          confirmation: {
+            select: { amountCzk: true, loyaltyAppliedCzk: true, createdAt: true },
+          },
+        },
+      }),
+      session.userId
+        ? (prisma as any).loyaltyTransaction.findMany({
+            where: { userId: session.userId },
+            orderBy: { createdAt: "desc" },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const toFeedOrder = (order: (typeof orders)[number]) => {
+      const totalCzk = order.items.reduce((sum, item) => sum + item.priceCzk * item.qty, 0);
+      const view = orderStatusView(order.status);
+
+      return {
+        id: order.id,
+        status: order.status,
+        comment: order.comment,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        totalCzk,
+        step: view.step,
+        statusTitle: view.title,
+        statusDescription: view.description,
+        statusTone: view.tone,
+        items: order.items.map((item) => ({
+          id: item.id,
+          qty: item.qty,
+          comment: item.comment,
+          priceCzk: item.priceCzk,
+          totalCzk: item.priceCzk * item.qty,
+          menuItem: item.menuItem,
+        })),
+      };
+    };
+
+    const settledOrderIds = new Set<string>();
+    const history = [...(payments as any[])]
+      .filter((payment: any) => payment.status === "CONFIRMED")
+      .sort((a: any, b: any) => {
+        const left = new Date(a.confirmedAt ?? a.createdAt).getTime();
+        const right = new Date(b.confirmedAt ?? b.createdAt).getTime();
+        return right - left;
+      })
+      .map((payment: any) => {
+        const closedAt = payment.confirmedAt ?? payment.confirmation?.createdAt ?? payment.createdAt;
+        const closedAtTs = new Date(closedAt).getTime();
+
+        const scopedOrders = [...orders]
+          .filter((order) => !settledOrderIds.has(order.id) && new Date(order.createdAt).getTime() < closedAtTs)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        for (const order of scopedOrders) {
+          settledOrderIds.add(order.id);
+        }
+
+        const paidOrders = scopedOrders.filter((order) => order.status !== "CANCELLED");
+        const itemMap = new Map<
+          string,
+          {
+            key: string;
+            name: string;
+            qty: number;
+            totalCzk: number;
+            comment?: string;
+          }
+        >();
+
+        for (const order of paidOrders) {
+          for (const item of order.items) {
+            const key = `${item.menuItem.id}:${item.comment ?? ""}`;
+            const existing = itemMap.get(key);
+
+            if (existing) {
+              existing.qty += item.qty;
+              existing.totalCzk += item.priceCzk * item.qty;
+              continue;
+            }
+
+            itemMap.set(key, {
+              key,
+              name: item.menuItem.name,
+              qty: item.qty,
+              totalCzk: item.priceCzk * item.qty,
+              comment: item.comment ?? undefined,
+            });
+          }
+        }
+
+        const fallbackAmountCzk = paidOrders.reduce(
+          (sum, order) => sum + order.items.reduce((inner, item) => inner + item.priceCzk * item.qty, 0),
+          0
+        );
+
+        return {
+          id: payment.id,
+          method: payment.method,
+          methodLabel: paymentMethodLabel(payment.method),
+          amountCzk: payment.confirmation?.amountCzk ?? fallbackAmountCzk,
+          closedAt,
+          orderCount: paidOrders.length,
+          itemCount: Array.from(itemMap.values()).reduce((sum, item) => sum + item.qty, 0),
+          items: Array.from(itemMap.values()),
+        };
+      })
+      .filter((entry) => entry.itemCount > 0 || entry.amountCzk > 0);
+
+    const activeOrders = orders.filter((order) => !settledOrderIds.has(order.id));
+    const feedOrders = activeOrders.map(toFeedOrder);
+
+    const feedCalls = calls.map((call) => {
+      const view = callStatusView(call.type, call.status, call.message);
+
+      return {
+        id: call.id,
+        type: call.type,
+        typeLabel: callTypeLabel(call.type),
+        status: call.status,
+        message: call.message,
+        createdAt: call.createdAt,
+        updatedAt: call.updatedAt,
+        statusTitle: view.title,
+        statusDescription: view.description,
+        statusTone: view.tone,
+      };
+    });
+
+    const feedPayments = (payments as any[]).map((payment: any) => {
+      const amountCzk = payment.confirmation?.amountCzk ?? null;
+      const view = paymentStatusView(payment.method, payment.status, amountCzk);
+
+      return {
+        id: payment.id,
+        method: payment.method,
+        methodLabel: paymentMethodLabel(payment.method),
+        useLoyalty: Boolean((payment as any).useLoyalty),
+        status: payment.status,
+        createdAt: payment.createdAt,
+        confirmedAt: payment.confirmedAt,
+        amountCzk,
+        loyaltyAppliedCzk: payment.confirmation?.loyaltyAppliedCzk ?? (payment as any).loyaltyAppliedCzk ?? 0,
+        statusTitle: view.title,
+        statusDescription: view.description,
+        statusTone: view.tone,
+      };
+    });
+
+    const orderedTotalCzk = feedOrders
+      .filter((order) => order.status !== "CANCELLED")
+      .reduce((sum, order) => sum + order.totalCzk, 0);
+
+    // `history` already contains settled bills, so the current open tab should only
+    // reflect the active orders left after settlement.
+    const confirmedPaidCzk = 0;
+    const redeemedLoyaltyCzk = 0;
+    const loyalty = summarizeLoyalty(loyaltyTransactions as any[]);
+
+    res.json({
+      ok: true,
+      table: {
+        id: session.table.id,
+        code: session.table.code,
+        label: session.table.label,
+      },
+      totals: {
+        orderedTotalCzk,
+        confirmedPaidCzk,
+        dueCzk: Math.max(orderedTotalCzk - confirmedPaidCzk - redeemedLoyaltyCzk, 0),
+      },
+      loyalty: {
+        availableCzk: loyalty.availableCzk,
+        pendingCzk: loyalty.pendingCzk,
+        nextAvailableAt: loyalty.nextAvailableAt,
+        cashbackPercent: 10,
+      },
+      orders: feedOrders,
+      history,
+      calls: feedCalls,
+      payments: feedPayments,
     });
   })
 );
