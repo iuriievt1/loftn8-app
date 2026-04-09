@@ -9,6 +9,7 @@ export type StaffPushPayload = {
   url?: string;
   tag?: string;
   ts?: number;
+  kind?: "ORDER_CREATED" | "CALL_CREATED" | "GUEST_MESSAGE" | "PAYMENT_REQUESTED";
 };
 
 export function useStaffPushEvents(onEvent?: (p: StaffPushPayload) => void) {

@@ -16,6 +16,7 @@ import { ensurePushSubscribed, rebindPushIfPossible } from "@/lib/staffPush";
 import { armAudio } from "@/lib/staffAlerts";
 import { useStaffSession } from "@/providers/staffSession";
 import { useToast } from "@/providers/toast";
+import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 function StatCard({
   title,
@@ -125,6 +126,17 @@ export default function StaffSummaryPage() {
     void boot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useStaffPushEvents((payload) => {
+    if (
+      payload.kind === "CALL_CREATED" ||
+      payload.kind === "GUEST_MESSAGE" ||
+      payload.kind === "ORDER_CREATED" ||
+      payload.kind === "PAYMENT_REQUESTED"
+    ) {
+      void tick();
+    }
+  });
 
   const onEnableNotifications = async () => {
     setPushStatus(null);

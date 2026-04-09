@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { listCalls, updateCallStatus, type StaffCall, type CallStatus } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
 import { useToast } from "@/providers/toast";
+import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 const STATUSES: CallStatus[] = ["NEW", "ACKED", "DONE"];
 
@@ -73,6 +74,12 @@ export default function StaffCallsPage() {
     void load({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  useStaffPushEvents((payload) => {
+    if (payload.kind === "CALL_CREATED" || payload.kind === "GUEST_MESSAGE") {
+      void tick();
+    }
+  });
 
   const setTo = async (id: string, st: CallStatus, okText: string) => {
     setBusyId(id);

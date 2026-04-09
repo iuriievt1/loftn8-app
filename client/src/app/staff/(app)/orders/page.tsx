@@ -13,6 +13,7 @@ import {
 } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
 import { useToast } from "@/providers/toast";
+import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 const STATUSES: OrderStatus[] = ["IN_PROGRESS", "DELIVERED", "CANCELLED"];
 
@@ -83,6 +84,12 @@ export default function StaffOrdersPage() {
     void load({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  useStaffPushEvents((payload) => {
+    if (payload.kind === "ORDER_CREATED") {
+      void tick();
+    }
+  });
 
   useEffect(() => {
     const raw = searchParams.get("status");

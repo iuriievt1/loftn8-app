@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { listPayments, confirmPayment, cancelPayment, type StaffPayment, type PaymentStatus } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
 import { useToast } from "@/providers/toast";
+import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 const STATUSES: PaymentStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
 
@@ -65,6 +66,12 @@ export default function StaffPaymentsPage() {
     void load({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  useStaffPushEvents((payload) => {
+    if (payload.kind === "PAYMENT_REQUESTED") {
+      void tick();
+    }
+  });
 
   const onConfirm = async (id: string) => {
     setBusyId(id);
