@@ -11,6 +11,7 @@ import { ORDER_REQUEST_MARKER, isOrderRequestMessage } from "../orders/orderRequ
 import { parsePaymentItemsJson } from "../payments/paymentAllocation";
 import { publicTableCode } from "../../config/venues";
 import type {
+  Prisma,
   CallType,
   CallStatus,
   OrderStatus,
@@ -36,6 +37,19 @@ function orderSectionsForRole(role: StaffRole): MenuSection[] | null {
   if (role === "HOOKAH") return ["HOOKAH"];
   if (role === "WAITER") return ["DISHES", "DRINKS"];
   return null;
+}
+
+function excludeOrderRequestMarker(): Prisma.StaffCallWhereInput {
+  return {
+    OR: [
+      { message: null },
+      {
+        message: {
+          not: ORDER_REQUEST_MARKER,
+        },
+      },
+    ],
+  };
 }
 
 function toPublicTable<T extends { code: string; label: string | null }>(table: T): T {
@@ -171,9 +185,7 @@ staffDashboardRouter.get(
         where: {
           status: "NEW",
           type: { in: types },
-          NOT: {
-            message: ORDER_REQUEST_MARKER,
-          },
+          ...excludeOrderRequestMarker(),
           table: { venueId },
         },
       }),
@@ -425,9 +437,7 @@ staffDashboardRouter.get(
       where: {
         status,
         type: { in: types },
-        NOT: {
-          message: ORDER_REQUEST_MARKER,
-        },
+        ...excludeOrderRequestMarker(),
         table: { venueId },
       },
       orderBy: { createdAt: "desc" },
