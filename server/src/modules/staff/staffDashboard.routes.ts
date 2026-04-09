@@ -163,7 +163,8 @@ staffDashboardRouter.get(
               status: { in: ["NEW", "ACKED"] },
               type: "HELP",
               message: ORDER_REQUEST_MARKER,
-              session: { shiftId: shift.id },
+              table: { venueId },
+              createdAt: { gte: shift.openedAt },
             },
           }),
       prisma.staffCall.count({
@@ -173,7 +174,8 @@ staffDashboardRouter.get(
           NOT: {
             message: ORDER_REQUEST_MARKER,
           },
-          session: { shiftId: shift.id },
+          table: { venueId },
+          createdAt: { gte: shift.openedAt },
         },
       }),
       role === "HOOKAH"
@@ -427,7 +429,8 @@ staffDashboardRouter.get(
         NOT: {
           message: ORDER_REQUEST_MARKER,
         },
-        session: { shiftId: shift.id },
+        table: { venueId },
+        createdAt: { gte: shift.openedAt },
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -462,7 +465,8 @@ staffDashboardRouter.get(
         status: { in: ["NEW", "ACKED"] },
         type: "HELP",
         message: ORDER_REQUEST_MARKER,
-        session: { shiftId: shift.id },
+        table: { venueId },
+        createdAt: { gte: shift.openedAt },
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -507,7 +511,7 @@ staffDashboardRouter.post(
     if (!request || !isOrderRequestMessage(request.message)) {
       throw new HttpError(404, "REQUEST_NOT_FOUND", "Order request not found");
     }
-    if (request.table.venueId !== venueId || request.session?.shiftId !== shift.id) {
+    if (request.table.venueId !== venueId || request.createdAt < shift.openedAt) {
       throw new HttpError(404, "REQUEST_NOT_FOUND", "Order request not found");
     }
 
