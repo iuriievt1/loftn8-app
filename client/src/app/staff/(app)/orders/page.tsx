@@ -12,8 +12,6 @@ import {
   type OrderStatus,
 } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
-import { attachStaffRealtime } from "@/lib/staffRealtime";
-import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 import { useToast } from "@/providers/toast";
 
 const STATUSES: OrderStatus[] = ["IN_PROGRESS", "DELIVERED", "CANCELLED"];
@@ -75,16 +73,11 @@ export default function StaffOrdersPage() {
   };
 
   const { tick, isRunning } = usePolling(() => load({ silent: true }), {
-    activeMs: 8000,
-    idleMs: 30000,
-    immediate: true,
+    activeMs: 15000,
+    idleMs: 45000,
+    immediate: false,
     enabled: true,
   });
-
-  useEffect(() => {
-    const off = attachStaffRealtime(() => void tick());
-    return off;
-  }, [tick]);
 
   useEffect(() => {
     void load({ silent: false });
@@ -100,10 +93,6 @@ export default function StaffOrdersPage() {
       router.replace("/staff/orders?status=IN_PROGRESS");
     }
   }, [searchParams, status, router]);
-
-  useStaffPushEvents(() => {
-    void tick();
-  });
 
   const totalItems = useMemo(
     () => orders.reduce((acc, o) => acc + o.items.reduce((s, it) => s + it.qty, 0), 0),

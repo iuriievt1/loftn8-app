@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { staffLogin } from "@/lib/staffApi";
 import { useStaffSession } from "@/providers/staffSession";
 import { ensurePushSubscribed, rebindPushIfPossible } from "@/lib/staffPush";
+import { ensureBackendWarm } from "@/lib/backendWarmup";
 
 export default function StaffLoginPage() {
   const router = useRouter();
@@ -14,6 +15,10 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    void ensureBackendWarm();
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

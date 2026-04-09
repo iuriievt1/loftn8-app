@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { ensureBackendWarm } from "@/lib/backendWarmup";
 import { useToast } from "@/providers/toast";
 import { useAuth } from "@/providers/auth";
 import { useSession } from "@/providers/session";
@@ -54,6 +55,10 @@ export default function AuthPage() {
   const [showAnonWarn, setShowAnonWarn] = useState(false);
 
   const p = useMemo(() => normalizePhone(phone), [phone]);
+
+  useEffect(() => {
+    void ensureBackendWarm();
+  }, []);
 
   useEffect(() => {
     if (loading) return;

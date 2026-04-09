@@ -5,9 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { staffLogout, getStaffSummary, type StaffSummary } from "@/lib/staffApi";
 import { useStaffSession } from "@/providers/staffSession";
-import { attachStaffRealtime } from "@/lib/staffRealtime";
 import { usePolling } from "@/lib/usePolling";
-import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 function Badge({ value }: { value?: number }) {
   if (!value || value <= 0) return null;
@@ -108,19 +106,6 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     void loadSummary({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldPollSummary, staff?.role]);
-
-  useEffect(() => {
-    if (!shouldPollSummary) return;
-    const off = attachStaffRealtime(() => {
-      void tick();
-    });
-    return off;
-  }, [tick, shouldPollSummary]);
-
-  useStaffPushEvents(() => {
-    if (!shouldPollSummary) return;
-    void tick();
-  });
 
   return (
     <div className="min-h-dvh bg-[#07070a] text-white">

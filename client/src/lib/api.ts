@@ -8,6 +8,10 @@ type FetchOptions = Omit<RequestInit, "headers"> & {
 
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
 
+function retryDelay(attempt: number) {
+  return Math.min(1200 * attempt, 4000);
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -45,7 +49,7 @@ export async function api<T>(path: string, options: FetchOptions = {}): Promise<
             : `HTTP ${res.status}`;
 
         if (attempt < maxAttempts && RETRYABLE_STATUS.has(res.status)) {
-          await sleep(350 * attempt);
+          await sleep(retryDelay(attempt));
           continue;
         }
 
@@ -57,7 +61,7 @@ export async function api<T>(path: string, options: FetchOptions = {}): Promise<
       lastError = error instanceof Error ? error : new Error("Request failed");
 
       if (attempt < maxAttempts) {
-        await sleep(350 * attempt);
+        await sleep(retryDelay(attempt));
         continue;
       }
       break;

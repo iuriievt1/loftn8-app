@@ -4,6 +4,10 @@ import { ensureBackendWarm } from "@/lib/backendWarmup";
 const API_BASE = "/api";
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
 
+function retryDelay(attempt: number) {
+  return Math.min(1200 * attempt, 4000);
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -56,7 +60,7 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
         const msg = (json && (json.message || json.error)) || `HTTP_${res.status}`;
 
         if (attempt < maxAttempts && RETRYABLE_STATUS.has(res.status)) {
-          await sleep(350 * attempt);
+          await sleep(retryDelay(attempt));
           continue;
         }
 
@@ -66,7 +70,7 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
       return { ok: true, data: json as T };
     } catch {
       if (attempt < maxAttempts) {
-        await sleep(350 * attempt);
+        await sleep(retryDelay(attempt));
         continue;
       }
       return { ok: false, error: "NETWORK_ERROR", status: 0 };

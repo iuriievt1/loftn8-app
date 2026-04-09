@@ -12,7 +12,6 @@ import {
   type ActiveShift,
 } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
-import { attachStaffRealtime } from "@/lib/staffRealtime";
 import { ensurePushSubscribed, rebindPushIfPossible } from "@/lib/staffPush";
 import { armAudio } from "@/lib/staffAlerts";
 import { useStaffSession } from "@/providers/staffSession";
@@ -112,17 +111,11 @@ export default function StaffSummaryPage() {
   };
 
   const { tick, isRunning } = usePolling(() => loadAll({ silent: true }), {
-    activeMs: 8000,
-    idleMs: 30000,
-    immediate: true,
+    activeMs: 15000,
+    idleMs: 45000,
+    immediate: false,
     enabled: !isAdmin,
   });
-
-  useEffect(() => {
-    if (isAdmin) return;
-    const off = attachStaffRealtime(() => void tick());
-    return off;
-  }, [tick, isAdmin]);
 
   useEffect(() => {
     async function boot() {

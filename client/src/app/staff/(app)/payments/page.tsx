@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { listPayments, confirmPayment, cancelPayment, type StaffPayment, type PaymentStatus } from "@/lib/staffApi";
 import { usePolling } from "@/lib/usePolling";
-import { attachStaffRealtime } from "@/lib/staffRealtime";
-import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 import { useToast } from "@/providers/toast";
 
 const STATUSES: PaymentStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
@@ -57,25 +55,16 @@ export default function StaffPaymentsPage() {
   };
 
   const { tick, isRunning } = usePolling(() => load({ silent: true }), {
-    activeMs: 8000,
-    idleMs: 30000,
-    immediate: true,
+    activeMs: 15000,
+    idleMs: 45000,
+    immediate: false,
     enabled: true,
   });
-
-  useEffect(() => {
-    const off = attachStaffRealtime(() => void tick());
-    return off;
-  }, [tick]);
 
   useEffect(() => {
     void load({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
-
-  useStaffPushEvents(() => {
-    void tick();
-  });
 
   const onConfirm = async (id: string) => {
     setBusyId(id);

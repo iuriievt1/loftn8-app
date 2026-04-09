@@ -28,6 +28,7 @@ export function usePolling(
   const timerRef = useRef<number | null>(null);
   const inFlightRef = useRef(false);
   const rerunRequestedRef = useRef(false);
+  const lastTickAtRef = useRef(0);
   const [isRunning, setIsRunning] = useState(false);
 
   const clear = useCallback(() => {
@@ -53,12 +54,15 @@ export function usePolling(
 
   const tick = useCallback(async () => {
     if (!enabled) return;
+    const now = Date.now();
+    if (now - lastTickAtRef.current < 1200) return;
     if (inFlightRef.current) {
       rerunRequestedRef.current = true;
       return;
     }
 
     inFlightRef.current = true;
+    lastTickAtRef.current = now;
 
     try {
       await fnRef.current();

@@ -34,14 +34,14 @@ export async function ensureBackendWarm() {
   }
 
   inFlight = (async () => {
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
       try {
         await pingHealth();
         lastWarmAt = Date.now();
         return;
       } catch {
-        if (attempt < 3) {
-          await sleep(250 * attempt);
+        if (attempt < 6) {
+          await sleep(750 * attempt);
           continue;
         }
       }
