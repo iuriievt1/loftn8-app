@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getStoredVenueSlug,
@@ -11,11 +11,13 @@ import {
   type VenueSlug,
 } from "@/lib/venue";
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [venues, setVenues] = useState<VenueOption[]>(() => getVenueCatalog());
-  const [selectedVenue, setSelectedVenue] = useState<VenueSlug>(() => getStoredVenueSlug() ?? "loft-zizkov");
+  const [selectedVenue, setSelectedVenue] = useState<VenueSlug>(
+    () => getStoredVenueSlug() ?? "loft-zizkov"
+  );
 
   useEffect(() => {
     const table = (searchParams.get("table") ?? "").trim();
@@ -89,7 +91,12 @@ export default function HomePage() {
                   ].join(" ")}
                 >
                   <div className="text-base font-semibold">{venue.shortName}</div>
-                  <div className={["mt-1 text-xs", active ? "text-black/65" : "text-white/45"].join(" ")}>
+                  <div
+                    className={[
+                      "mt-1 text-xs",
+                      active ? "text-black/65" : "text-white/45",
+                    ].join(" ")}
+                  >
                     {venue.name}
                   </div>
                 </button>
@@ -106,5 +113,13 @@ export default function HomePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }
