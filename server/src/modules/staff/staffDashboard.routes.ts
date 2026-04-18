@@ -10,6 +10,7 @@ import { notifyOrderCreated } from "../staff/push.service";
 import { ORDER_REQUEST_MARKER, isOrderRequestMessage } from "../orders/orderRequest";
 import { parsePaymentItemsJson } from "../payments/paymentAllocation";
 import { publicTableCode } from "../../config/venues";
+import { getOpenShiftOrThrow } from "./shiftCache";
 import type {
   Prisma,
   CallType,
@@ -148,16 +149,7 @@ async function createOrAppendTableOrder(
 }
 
 async function getActiveShiftOrThrow(venueId: number) {
-  const shift = await prisma.shift.findFirst({
-    where: { venueId, status: "OPEN" },
-    orderBy: { openedAt: "desc" },
-  });
-
-  if (!shift) {
-    throw new HttpError(409, "SHIFT_NOT_OPEN", "No active shift");
-  }
-
-  return shift;
+  return getOpenShiftOrThrow(venueId);
 }
 
 // summary
@@ -671,6 +663,9 @@ staffDashboardRouter.get(
                 name: true,
                 phone: true,
                 loyaltyTransactions: {
+                  where: {
+                    venueId,
+                  },
                   select: {
                     createdAt: true,
                     cashbackCzk: true,
@@ -793,6 +788,9 @@ staffDashboardRouter.post(
               user: {
                 select: {
                   loyaltyTransactions: {
+                    where: {
+                      venueId,
+                    },
                     select: {
                       id: true,
                       createdAt: true,

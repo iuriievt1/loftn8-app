@@ -6,6 +6,7 @@ import { validate } from "../../middleware/validate";
 import { guestSessionAuth } from "../../middleware/auth/guestSession";
 import { notifyCallCreated } from "../staff/push.service";
 import { HttpError } from "../../utils/httpError";
+import { getOpenShift } from "../staff/shiftCache";
 
 export const callsRouter = Router();
 
@@ -26,14 +27,7 @@ async function attachSessionToActiveShiftIfNeeded(sessionId: string) {
 
   if (!session) throw new HttpError(401, "SESSION_INVALID", "Session invalid");
 
-  const activeShift = await prisma.shift.findFirst({
-    where: {
-      venueId: session.table.venueId,
-      status: "OPEN",
-    },
-    orderBy: { openedAt: "desc" },
-    select: { id: true },
-  });
+  const activeShift = await getOpenShift(session.table.venueId);
 
   if (!activeShift) return session;
   if (session.shiftId === activeShift.id) return session;

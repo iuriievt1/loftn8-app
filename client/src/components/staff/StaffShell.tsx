@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { staffLogout, getStaffSummary, type StaffSummary } from "@/lib/staffApi";
 import { useStaffSession } from "@/providers/staffSession";
 import { usePolling } from "@/lib/usePolling";
+import { useStaffPushEvents } from "@/lib/useStaffPushEvents";
 
 function Badge({ value }: { value?: number }) {
   if (!value || value <= 0) return null;
@@ -99,6 +100,17 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     idleMs: 45000,
     immediate: false,
     enabled: shouldPollSummary,
+  });
+
+  useStaffPushEvents((payload) => {
+    if (
+      payload.kind === "CALL_CREATED" ||
+      payload.kind === "GUEST_MESSAGE" ||
+      payload.kind === "ORDER_CREATED" ||
+      payload.kind === "PAYMENT_REQUESTED"
+    ) {
+      void tick();
+    }
   });
 
   useEffect(() => {

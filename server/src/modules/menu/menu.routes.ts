@@ -8,28 +8,30 @@ export const menuRouter = Router();
 
 const MENU_CACHE_TTL_MS = 30 * 1000;
 
-let menuCache:
-  | {
-      venueId: number;
-      expiresAt: number;
-      payload: {
-        venue: { id: number; name: string; slug: string };
-        categories: Array<{
-          id: number;
-          name: string;
-          sort: number;
-          section: string;
-          items: Array<{
-            id: number;
-            name: string;
-            description: string | null;
-            priceCzk: number;
-            imageUrl: string | null;
-          }>;
-        }>;
-      };
-    }
-  | null = null;
+type MenuPayload = {
+  venue: { id: number; name: string; slug: string };
+  categories: Array<{
+    id: number;
+    name: string;
+    sort: number;
+    section: string;
+    items: Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      priceCzk: number;
+      imageUrl: string | null;
+    }>;
+  }>;
+};
+
+const menuCache = new Map<
+  number,
+  {
+    expiresAt: number;
+    payload: MenuPayload;
+  }
+>();
 
 async function resolveVenue(rawVenueSlug?: string | null) {
   const requestedVenue = resolveVenueSlug(rawVenueSlug);
@@ -112,10 +114,11 @@ menuRouter.get(
     const requestedVenueSlug = String(req.headers["x-venue-slug"] ?? req.query?.venueSlug ?? "").trim();
     const venue = await resolveVenue(requestedVenueSlug);
     const now = Date.now();
+    const cached = menuCache.get(venue.id);
 
-    if (menuCache && menuCache.venueId === venue.id && menuCache.expiresAt > now) {
+    if (cached && cached.expiresAt > now) {
       res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
-      return res.json(menuCache.payload);
+      return res.json(cached.payload);
     }
 
     await ensureVenueMenuSeeded(venue.id);
@@ -131,7 +134,7 @@ menuRouter.get(
       },
     });
 
-    const payload = {
+    const payload: MenuPayload = {
       venue: { id: venue.id, name: venueNameBySlug(venue.slug), slug: publicVenueSlug(venue.slug) },
       categories: categories.map((c) => ({
         id: c.id,
@@ -148,11 +151,10 @@ menuRouter.get(
       })),
     };
 
-    menuCache = {
-      venueId: venue.id,
+    menuCache.set(venue.id, {
       expiresAt: now + MENU_CACHE_TTL_MS,
       payload,
-    };
+    });
 
     res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
     res.json(payload);

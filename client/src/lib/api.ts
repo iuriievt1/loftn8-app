@@ -8,6 +8,7 @@ type FetchOptions = Omit<RequestInit, "headers"> & {
 };
 
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
 
 function retryDelay(attempt: number) {
   return Math.min(1200 * attempt, 4000);
@@ -17,21 +18,64 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function requestKey(url: string, options: FetchOptions, venueSlug?: string) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(venueSlug ? { "X-Venue-Slug": venueSlug } : {}),
+    ...(options.headers ?? {}),
+  };
+
+  return JSON.stringify({
+    url,
+    method: "GET",
+    headers: Object.entries(headers).sort(([left], [right]) => left.localeCompare(right)),
+  });
+}
+
 export async function api<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const base = API.replace(/\/$/, "");
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
   const method = String(options.method ?? "GET").toUpperCase();
   const maxAttempts = method === "GET" ? 3 : 1;
-  let lastError: Error | null = null;
+  const venueSlug = typeof window !== "undefined" ? getVenueSlug() : undefined;
 
   if (method !== "GET") {
     await ensureBackendWarm();
   }
 
+  if (method === "GET") {
+    const key = requestKey(url, options, venueSlug);
+    const existing = inFlightGetRequests.get(key) as Promise<T> | undefined;
+    if (existing) {
+      return existing;
+    }
+
+    const pending = (async () => {
+      try {
+        return await performRequest<T>(url, options, maxAttempts, venueSlug);
+      } finally {
+        inFlightGetRequests.delete(key);
+      }
+    })();
+
+    inFlightGetRequests.set(key, pending);
+    return pending;
+  }
+
+  return performRequest<T>(url, options, maxAttempts, venueSlug);
+}
+
+async function performRequest<T>(
+  url: string,
+  options: FetchOptions,
+  maxAttempts: number,
+  venueSlug?: string
+): Promise<T> {
+  let lastError: Error | null = null;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const venueSlug = typeof window !== "undefined" ? getVenueSlug() : undefined;
       const res = await fetch(url, {
         ...options,
         headers: {

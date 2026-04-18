@@ -23,9 +23,21 @@ export async function guestSessionAuth(req: Request, _res: Response, next: NextF
 
   const session = await prisma.guestSession.findUnique({
     where: { id: guestPayload.sessionId },
-    include: {
+    select: {
+      id: true,
+      tableId: true,
+      userId: true,
+      shiftId: true,
+      startedAt: true,
+      endedAt: true,
       table: {
-        include: {
+        select: {
+          id: true,
+          code: true,
+          label: true,
+          displayName: true,
+          slug: true,
+          venueId: true,
           venue: {
             select: { slug: true, name: true },
           },
@@ -38,7 +50,10 @@ export async function guestSessionAuth(req: Request, _res: Response, next: NextF
     return next(new HttpError(401, "SESSION_NOT_FOUND", "Session not found or ended"));
   }
 
-  const expiry = await expireGuestSessionIfInactiveAfterPayment(session.id);
+  const expiry = await expireGuestSessionIfInactiveAfterPayment(session.id, {
+    id: session.id,
+    endedAt: session.endedAt,
+  });
   if (expiry.expired) {
     const isProd = env.NODE_ENV === "production";
     res.clearCookie("gsid", {
@@ -77,9 +92,21 @@ export async function guestSessionAuth(req: Request, _res: Response, next: NextF
           const syncedSession = await prisma.guestSession.update({
             where: { id: session.id },
             data: { userId: user.id },
-            include: {
+            select: {
+              id: true,
+              tableId: true,
+              userId: true,
+              shiftId: true,
+              startedAt: true,
+              endedAt: true,
               table: {
-                include: {
+                select: {
+                  id: true,
+                  code: true,
+                  label: true,
+                  displayName: true,
+                  slug: true,
+                  venueId: true,
                   venue: {
                     select: { slug: true, name: true },
                   },

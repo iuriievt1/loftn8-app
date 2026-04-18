@@ -256,7 +256,10 @@ async function resolveGuestSessionFromCookie(req: any) {
       return null;
     }
 
-    const expiry = await expireGuestSessionIfInactiveAfterPayment(session.id);
+    const expiry = await expireGuestSessionIfInactiveAfterPayment(session.id, {
+      id: session.id,
+      endedAt: session.endedAt,
+    });
     if (expiry.expired) {
       req.__guestSessionExpired = true;
       return null;
@@ -677,9 +680,18 @@ guestRouter.get(
           ...(session.shiftId ? { session: { shiftId: session.shiftId } } : {}),
         },
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          comment: true,
+          createdAt: true,
+          updatedAt: true,
           items: {
-            include: {
+            select: {
+              id: true,
+              qty: true,
+              comment: true,
+              priceCzk: true,
               menuItem: {
                 select: { id: true, name: true },
               },
@@ -693,6 +705,14 @@ guestRouter.get(
           table: { venueId: session.table.venueId },
         },
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          message: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       (prisma as any).paymentRequest.findMany({
         where: {
@@ -701,7 +721,16 @@ guestRouter.get(
           ...(session.shiftId ? { session: { shiftId: session.shiftId } } : {}),
         },
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          method: true,
+          useLoyalty: true,
+          status: true,
+          createdAt: true,
+          confirmedAt: true,
+          billTotalCzk: true,
+          loyaltyAppliedCzk: true,
+          itemsJson: true,
           session: {
             select: {
               id: true,
@@ -715,7 +744,10 @@ guestRouter.get(
       }),
       session.userId
         ? (prisma as any).loyaltyTransaction.findMany({
-            where: { userId: session.userId },
+            where: {
+              userId: session.userId,
+              venueId: session.table.venueId,
+            },
             orderBy: { createdAt: "desc" },
           })
         : Promise.resolve([]),
@@ -728,6 +760,13 @@ guestRouter.get(
           ...(session.shiftId ? { session: { shiftId: session.shiftId } } : {}),
         },
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          message: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
     ]);
 

@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { HttpError } from "../../utils/httpError";
 import { requireStaffAuth, requireStaffRole } from "./staff.middleware";
+import { getOpenShift, getOpenShiftOrThrow, invalidateOpenShiftCache } from "./shiftCache";
 
 export const staffShiftRouter = Router();
 
@@ -14,30 +15,38 @@ staffShiftRouter.get(
   asyncHandler(async (req, res) => {
     const venueId = req.staff!.venueId;
 
-    const shift = await prisma.shift.findFirst({
-      where: { venueId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-      include: {
-        participants: {
-          where: { isActive: true },
+    const shift = await getOpenShift(venueId);
+    if (!shift) {
+      return res.json({ ok: true, shift: null });
+    }
+
+    const participants = await prisma.shiftParticipant.findMany({
+      where: {
+        shiftId: shift.id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        staffId: true,
+        role: true,
+        joinedAt: true,
+        staff: {
           select: {
             id: true,
-            staffId: true,
+            username: true,
             role: true,
-            joinedAt: true,
-            staff: {
-              select: {
-                id: true,
-                username: true,
-                role: true,
-              },
-            },
           },
         },
       },
     });
 
-    res.json({ ok: true, shift });
+    res.json({
+      ok: true,
+      shift: {
+        ...shift,
+        participants,
+      },
+    });
   })
 );
 
@@ -49,10 +58,7 @@ staffShiftRouter.post(
     const venueId = req.staff!.venueId;
     const managerId = req.staff!.staffId;
 
-    const existing = await prisma.shift.findFirst({
-      where: { venueId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-    });
+    const existing = await getOpenShift(venueId);
 
     if (existing) {
       throw new HttpError(409, "SHIFT_ALREADY_OPEN", "Shift is already open");
@@ -83,6 +89,8 @@ staffShiftRouter.post(
       },
     });
 
+    invalidateOpenShiftCache(venueId);
+
     res.json({ ok: true, shift });
   })
 );
@@ -95,14 +103,7 @@ staffShiftRouter.post(
     const staffId = req.staff!.staffId;
     const role = req.staff!.role;
 
-    const shift = await prisma.shift.findFirst({
-      where: { venueId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-    });
-
-    if (!shift) {
-      throw new HttpError(409, "SHIFT_NOT_OPEN", "No active shift");
-    }
+    const shift = await getOpenShiftOrThrow(venueId);
 
     const participant = await prisma.shiftParticipant.upsert({
       where: {
@@ -135,14 +136,7 @@ staffShiftRouter.post(
     const venueId = req.staff!.venueId;
     const staffId = req.staff!.staffId;
 
-    const shift = await prisma.shift.findFirst({
-      where: { venueId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-    });
-
-    if (!shift) {
-      throw new HttpError(409, "SHIFT_NOT_OPEN", "No active shift");
-    }
+    const shift = await getOpenShiftOrThrow(venueId);
 
     const participant = await prisma.shiftParticipant.findUnique({
       where: {
@@ -177,11 +171,7 @@ staffShiftRouter.post(
     const venueId = req.staff!.venueId;
     const managerId = req.staff!.staffId;
 
-    const shift = await prisma.shift.findFirst({
-      where: { venueId, status: "OPEN" },
-      orderBy: { openedAt: "desc" },
-    });
-
+    const shift = await getOpenShift(venueId);
     if (!shift) {
       throw new HttpError(404, "SHIFT_NOT_FOUND", "Active shift not found");
     }
@@ -208,6 +198,8 @@ staffShiftRouter.post(
         },
       });
     });
+
+    invalidateOpenShiftCache(venueId);
 
     res.json({ ok: true, shiftId: shift.id, closedAt: now });
   })

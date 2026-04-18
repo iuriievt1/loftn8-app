@@ -76,6 +76,12 @@ function genOtpCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function assertRegisterAllowed(existingUser: { id: string } | null) {
+  if (existingUser) {
+    throw new HttpError(409, "ACCOUNT_EXISTS", "Account already exists. Please sign in.");
+  }
+}
+
 // POST /auth/guest/request-otp
 authRouter.post(
   "/guest/request-otp",
@@ -84,15 +90,17 @@ authRouter.post(
     const phone = normalizePhone((req.body as any).phone);
     const intent: Intent = ((req.body as any).intent as Intent) || "login";
     const nameRaw = String((req.body as any).name ?? "").trim();
+    const user = await prisma.user.findUnique({ where: { phone } });
 
     if (intent === "login") {
-      const user = await prisma.user.findUnique({ where: { phone } });
       if (!user) throw new HttpError(404, "NO_ACCOUNT", "Account not found. Please register.");
 
       if (nameRaw) {
         const okName = normalizeName(nameRaw) === normalizeName(user.name);
         if (!okName) throw new HttpError(404, "NAME_MISMATCH", "Account not found. Please register.");
       }
+    } else {
+      assertRegisterAllowed(user);
     }
 
     const code = genOtpCode();
@@ -147,17 +155,12 @@ authRouter.post(
     } else {
       if (!nameRaw) throw new HttpError(400, "NAME_REQUIRED", "Name is required");
       if (!consent) throw new HttpError(400, "CONSENT_REQUIRED", "Consent is required");
+      assertRegisterAllowed(user);
 
       const emailNorm = assertEmailOrNull(normalizeEmail((req.body as any).email));
 
-      user = await prisma.user.upsert({
-        where: { phone },
-        update: {
-          name: nameRaw,
-          email: emailNorm,
-          privacyAcceptedAt: new Date(),
-        },
-        create: {
+      user = await prisma.user.create({
+        data: {
           phone,
           name: nameRaw,
           email: emailNorm,

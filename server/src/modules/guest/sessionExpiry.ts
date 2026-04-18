@@ -1,15 +1,20 @@
 import { prisma } from "../../db/prisma";
 
-const SESSION_AUTO_END_AFTER_PAYMENT_MS = 3 * 60 * 60 * 1000;
+const SESSION_AUTO_END_AFTER_PAYMENT_MS = 60 * 60 * 1000;
 
-export async function expireGuestSessionIfInactiveAfterPayment(sessionId: string) {
-  const session = await prisma.guestSession.findUnique({
-    where: { id: sessionId },
-    select: {
-      id: true,
-      endedAt: true,
-    },
-  });
+export async function expireGuestSessionIfInactiveAfterPayment(
+  sessionId: string,
+  sessionSnapshot?: { id: string; endedAt: Date | null }
+) {
+  const session =
+    sessionSnapshot ??
+    (await prisma.guestSession.findUnique({
+      where: { id: sessionId },
+      select: {
+        id: true,
+        endedAt: true,
+      },
+    }));
 
   if (!session) {
     return { expired: true as const, reason: "missing" as const };

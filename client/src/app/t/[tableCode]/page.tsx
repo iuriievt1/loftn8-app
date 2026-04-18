@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { consumeAnonBypassAuthOnce } from "@/lib/guestFlow";
 import { getVenueSlug, setVenueSlug } from "@/lib/venue";
 import { useSession } from "@/providers/session";
 import type { AuthMeResponse } from "@/types";
@@ -66,7 +67,12 @@ export default function TableEntry() {
           authenticated: false,
         } as AuthMeResponse));
 
-        router.replace(me.authenticated ? "/menu" : "/auth");
+        if (me.authenticated || consumeAnonBypassAuthOnce()) {
+          router.replace("/menu");
+          return;
+        }
+
+        router.replace("/auth");
       } catch (e: any) {
         setErr(e?.message ?? "Failed to create session");
       }

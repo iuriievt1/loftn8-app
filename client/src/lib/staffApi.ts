@@ -4,6 +4,7 @@ import { getStaffVenueSlug } from "@/lib/venue";
 
 const API_BASE = "/api";
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
+const inFlightGetRequests = new Map<string, Promise<ApiResult<unknown>>>();
 
 function retryDelay(attempt: number) {
   return Math.min(1200 * attempt, 4000);
@@ -11,6 +12,20 @@ function retryDelay(attempt: number) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function requestKey(path: string, init?: RequestInit, venueSlug?: string) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(venueSlug ? { "X-Venue-Slug": venueSlug } : {}),
+    ...(init?.headers || {}),
+  };
+
+  return JSON.stringify({
+    path,
+    method: "GET",
+    headers: Object.entries(headers).sort(([left], [right]) => left.localeCompare(right)),
+  });
 }
 
 type ApiOk<T> = { ok: true; data: T };
@@ -32,14 +47,43 @@ function withQuery(path: string, params?: Record<string, string | undefined>) {
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   const method = String(init?.method ?? "GET").toUpperCase();
   const maxAttempts = method === "GET" ? 3 : 1;
+  const venueSlug = typeof window !== "undefined" ? getStaffVenueSlug() : undefined;
 
   if (method !== "GET") {
     await ensureBackendWarm();
   }
 
+  if (method === "GET") {
+    const key = requestKey(path, init, venueSlug);
+    const existing = inFlightGetRequests.get(key) as Promise<ApiResult<T>> | undefined;
+    if (existing) {
+      return existing;
+    }
+
+    const pending = (async () => {
+      try {
+        return await performFetchJson<T>(path, init, maxAttempts, venueSlug);
+      } finally {
+        inFlightGetRequests.delete(key);
+      }
+    })();
+
+    inFlightGetRequests.set(key, pending);
+    return pending;
+  }
+
+  return performFetchJson<T>(path, init, maxAttempts, venueSlug);
+}
+
+async function performFetchJson<T>(
+  path: string,
+  init: RequestInit | undefined,
+  maxAttempts: number,
+  venueSlug?: string
+): Promise<ApiResult<T>> {
+
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const venueSlug = typeof window !== "undefined" ? getStaffVenueSlug() : undefined;
       const res = await fetch(`${API_BASE}${path}`, {
         ...init,
         credentials: "include",

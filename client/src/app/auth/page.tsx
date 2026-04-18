@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { ensureBackendWarm } from "@/lib/backendWarmup";
+import { markAnonBypassAuthOnce } from "@/lib/guestFlow";
 import { getVenueName, hasVenueSelection } from "@/lib/venue";
 import { useToast } from "@/providers/toast";
 import { useAuth } from "@/providers/auth";
@@ -20,6 +21,7 @@ function humanError(msg: string) {
   const m = String(msg || "");
   if (m.includes("NO_ACCOUNT")) return "Account not found. Please register.";
   if (m.includes("NAME_MISMATCH")) return "Account not found (please check your name and phone) — please register.";
+  if (m.includes("ACCOUNT_EXISTS")) return "This phone is already registered. Please sign in.";
   if (m.includes("CONSENT_REQUIRED")) return "You must agree to personal data processing.";
   if (m.includes("NAME_REQUIRED")) return "Name is required.";
   if (m.includes("OTP_INVALID")) return "Invalid code.";
@@ -50,6 +52,7 @@ export default function AuthPage() {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [suggestedMode, setSuggestedMode] = useState<Mode | null>(null);
 
   const [devOtp, setDevOtp] = useState<string | null>(null);
 
@@ -81,6 +84,7 @@ export default function AuthPage() {
 
   const requestOtp = async () => {
     setErr(null);
+    setSuggestedMode(null);
     if (!canSend) return;
 
     setBusy(true);
@@ -98,8 +102,14 @@ export default function AuthPage() {
       setCode("");
       push({ kind: "success", title: "Code sent", message: "Check your SMS and enter the code." });
     } catch (e: any) {
+      const raw = String(e?.message || "");
       const msg = humanError(e?.message ?? "Failed");
       setErr(msg);
+      if (mode === "register" && raw.includes("ACCOUNT_EXISTS")) {
+        setSuggestedMode("login");
+      } else if (mode === "login" && (raw.includes("NO_ACCOUNT") || raw.includes("NAME_MISMATCH"))) {
+        setSuggestedMode("register");
+      }
       push({ kind: "error", title: "Error", message: msg });
     } finally {
       setBusy(false);
@@ -108,6 +118,7 @@ export default function AuthPage() {
 
   const verifyOtp = async () => {
     setErr(null);
+    setSuggestedMode(null);
     if (!canVerify) return;
 
     setBusy(true);
@@ -139,9 +150,15 @@ export default function AuthPage() {
       setErr(msg);
 
       const raw = String(e?.message || "");
-      if (mode === "login" && (raw.includes("NO_ACCOUNT") || raw.includes("NAME_MISMATCH"))) {
-        setMode("register");
+      if (mode === "register" && raw.includes("ACCOUNT_EXISTS")) {
         setStep("form");
+        setCode("");
+        setSuggestedMode("login");
+      }
+
+      if (mode === "login" && (raw.includes("NO_ACCOUNT") || raw.includes("NAME_MISMATCH"))) {
+        setStep("form");
+        setSuggestedMode("register");
       }
 
       push({ kind: "error", title: "Error", message: msg });
@@ -157,7 +174,19 @@ export default function AuthPage() {
   const doAnonContinue = async () => {
     setShowAnonWarn(false);
     await restoreSession().catch(() => {});
-    router.replace("/menu");
+
+    const guestSession = await api<{ ok: boolean; session: unknown | null }>("/guest/me").catch(() => ({
+      ok: false,
+      session: null,
+    }));
+
+    if (guestSession.ok && guestSession.session) {
+      router.replace("/menu");
+      return;
+    }
+
+    markAnonBypassAuthOnce();
+    router.replace("/table");
   };
 
   return (
@@ -295,7 +324,23 @@ export default function AuthPage() {
 
               {err ? (
                 <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/10 p-3 text-xs text-red-200">
-                  {err}
+                  <div>{err}</div>
+                  {suggestedMode ? (
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white"
+                      onClick={() => {
+                        setErr(null);
+                        setSuggestedMode(null);
+                        setDevOtp(null);
+                        setCode("");
+                        setStep("form");
+                        setMode(suggestedMode);
+                      }}
+                    >
+                      {suggestedMode === "login" ? "Log in" : "Register"}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -339,7 +384,23 @@ export default function AuthPage() {
 
                 {err ? (
                   <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/10 p-3 text-xs text-red-200">
-                    {err}
+                    <div>{err}</div>
+                    {suggestedMode ? (
+                      <button
+                        type="button"
+                        className="mt-3 inline-flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white"
+                        onClick={() => {
+                          setErr(null);
+                          setSuggestedMode(null);
+                          setDevOtp(null);
+                          setCode("");
+                          setStep("form");
+                          setMode(suggestedMode);
+                        }}
+                      >
+                        {suggestedMode === "login" ? "Log in" : "Register"}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
