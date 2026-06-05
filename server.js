@@ -81,6 +81,12 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
 	console.log(`Farshiki store: http://127.0.0.1:${PORT}/`);
 	console.log("Orders API: POST /api/orders");
+	console.log(
+		`Telegram notifications: ${process.env.BOT_TOKEN && (process.env.TELEGRAM_CHAT_ID || process.env.ADMIN_CHAT_ID) ? "configured" : "missing BOT_TOKEN or TELEGRAM_CHAT_ID"}`,
+	);
+	console.log(
+		`Email notifications: ${process.env.SMTP_HOST && process.env.SMTP_USER ? "configured" : "missing SMTP settings"}`,
+	);
 	if (process.env.BOT_TOKEN && process.env.RUN_BOT !== "false") {
 		require("./bot/farshiki-bot");
 	}
@@ -207,25 +213,37 @@ async function notifyAdmin(text) {
 		.filter(Boolean);
 	if (!process.env.BOT_TOKEN || !chatIds.length) return;
 	await Promise.all(
-		chatIds.map((chatId) =>
-			fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+		chatIds.map(async (chatId) => {
+			const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					chat_id: chatId,
 					text,
 				}),
-			}).catch(() => {}),
-		),
+			});
+			const payload = await response.json().catch(() => ({}));
+			if (!response.ok || payload.ok === false) {
+				throw new Error(
+					`Telegram sendMessage failed for ${chatId}: ${payload.description || response.status}`,
+				);
+			}
+		}),
 	);
 }
 
 function dispatchOrderNotifications(order, orderText) {
-	Promise.all([notifyAdmin(orderText), notifyCustomer(order, orderText)]).catch(
-		(error) => {
+	Promise.allSettled([notifyAdmin(orderText), notifyCustomer(order, orderText)])
+		.then((results) => {
+			results.forEach((result) => {
+				if (result.status === "rejected") {
+					console.error("Order notification failed:", result.reason.message);
+				}
+			});
+		})
+		.catch((error) => {
 			console.error("Order notification failed:", error.message);
-		},
-	);
+		});
 }
 
 async function notifyCustomer(order, orderText) {
@@ -254,8 +272,7 @@ async function notifyCustomer(order, orderText) {
 				"",
 				orderText,
 			].join("\n"),
-		})
-		.catch(() => {});
+		});
 }
 
 function loadEnv(filePath) {
