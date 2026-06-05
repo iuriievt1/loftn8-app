@@ -56,6 +56,11 @@ const server = http.createServer(async (req, res) => {
 		});
 	}
 
+	if (req.method === "GET" && url.pathname === "/api/debug/test-notifications") {
+		const result = await testNotifications();
+		return json(res, 200, result);
+	}
+
 	if (req.method === "POST" && url.pathname === "/api/orders") {
 		try {
 			const order = JSON.parse(await readBody(req));
@@ -225,29 +230,36 @@ function formatMoney(value) {
 }
 
 async function notifyAdmin(text) {
-	const chatIds = (process.env.TELEGRAM_CHAT_ID || process.env.ADMIN_CHAT_ID || "")
+	const chatIds = getTelegramChatIds();
+	if (!process.env.BOT_TOKEN || !chatIds.length) return;
+	await Promise.all(
+		chatIds.map((chatId) => sendTelegramMessage(chatId, text)),
+	);
+}
+
+function getTelegramChatIds() {
+	return (process.env.TELEGRAM_CHAT_ID || process.env.ADMIN_CHAT_ID || "")
 		.split(",")
 		.map((value) => value.trim())
 		.filter(Boolean);
-	if (!process.env.BOT_TOKEN || !chatIds.length) return;
-	await Promise.all(
-		chatIds.map(async (chatId) => {
-			const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					chat_id: chatId,
-					text,
-				}),
-			});
-			const payload = await response.json().catch(() => ({}));
-			if (!response.ok || payload.ok === false) {
-				throw new Error(
-					`Telegram sendMessage failed for ${chatId}: ${payload.description || response.status}`,
-				);
-			}
+}
+
+async function sendTelegramMessage(chatId, text) {
+	const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			chat_id: chatId,
+			text,
 		}),
-	);
+	});
+	const payload = await response.json().catch(() => ({}));
+	if (!response.ok || payload.ok === false) {
+		throw new Error(
+			`Telegram sendMessage failed for ${chatId}: ${payload.description || response.status}`,
+		);
+	}
+	return payload;
 }
 
 function dispatchOrderNotifications(order, orderText) {
@@ -267,18 +279,7 @@ function dispatchOrderNotifications(order, orderText) {
 async function notifyCustomer(order, orderText) {
 	const customer = order.customer || {};
 	if (!customer.email || !process.env.SMTP_HOST) return;
-	const transporter = nodemailer.createTransport({
-		host: process.env.SMTP_HOST,
-		port: Number(process.env.SMTP_PORT || 587),
-		secure: process.env.SMTP_SECURE === "true",
-		auth:
-			process.env.SMTP_USER && process.env.SMTP_PASS
-				? {
-						user: process.env.SMTP_USER,
-						pass: process.env.SMTP_PASS,
-					}
-				: undefined,
-	});
+	const transporter = createMailer();
 	await transporter
 		.sendMail({
 			from: process.env.MAIL_FROM || process.env.SMTP_USER || "farshiki store",
@@ -291,6 +292,84 @@ async function notifyCustomer(order, orderText) {
 				orderText,
 			].join("\n"),
 		});
+}
+
+function createMailer() {
+	return nodemailer.createTransport({
+		host: process.env.SMTP_HOST,
+		port: Number(process.env.SMTP_PORT || 587),
+		secure: process.env.SMTP_SECURE === "true",
+		auth:
+			process.env.SMTP_USER && process.env.SMTP_PASS
+				? {
+						user: process.env.SMTP_USER,
+						pass: process.env.SMTP_PASS,
+					}
+				: undefined,
+	});
+}
+
+async function testNotifications() {
+	const result = {
+		ok: true,
+		telegram: [],
+		email: null,
+	};
+
+	if (!process.env.BOT_TOKEN || !getTelegramChatIds().length) {
+		result.telegram.push({
+			ok: false,
+			error: "Missing BOT_TOKEN or TELEGRAM_CHAT_ID",
+		});
+	} else {
+		for (const chatId of getTelegramChatIds()) {
+			try {
+				await sendTelegramMessage(
+					chatId,
+					`Тест уведомлений FARSHIKI\n${new Date().toISOString()}`,
+				);
+				result.telegram.push({ chatId, ok: true });
+			} catch (error) {
+				result.telegram.push({ chatId, ok: false, error: error.message });
+			}
+		}
+	}
+
+	if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+		result.email = {
+			ok: false,
+			error: "Missing SMTP_HOST or SMTP_USER",
+		};
+	} else {
+		try {
+			const transporter = createMailer();
+			const to =
+				process.env.MAIL_REPLY_TO ||
+				process.env.STORE_EMAIL ||
+				process.env.SMTP_USER;
+			await transporter.verify();
+			const info = await transporter.sendMail({
+				from: process.env.MAIL_FROM || process.env.SMTP_USER,
+				to,
+				replyTo: process.env.MAIL_REPLY_TO || process.env.MAIL_FROM || undefined,
+				subject: "FARSHIKI test notification",
+				text: `Тест почтовых уведомлений FARSHIKI\n${new Date().toISOString()}`,
+			});
+			result.email = {
+				ok: true,
+				to,
+				accepted: info.accepted || [],
+				rejected: info.rejected || [],
+			};
+		} catch (error) {
+			result.email = { ok: false, error: error.message };
+		}
+	}
+
+	result.ok =
+		result.telegram.every((item) => item.ok) &&
+		Boolean(result.email && result.email.ok);
+	return result;
 }
 
 function loadEnv(filePath) {
