@@ -38,6 +38,24 @@ const server = http.createServer(async (req, res) => {
 		return json(res, 200, { ok: true });
 	}
 
+	if (req.method === "GET" && url.pathname === "/api/debug/status") {
+		return json(res, 200, {
+			ok: true,
+			telegram: {
+				botToken: Boolean(process.env.BOT_TOKEN),
+				chatId: Boolean(process.env.TELEGRAM_CHAT_ID || process.env.ADMIN_CHAT_ID),
+				runBot: process.env.RUN_BOT || "",
+			},
+			email: {
+				host: Boolean(process.env.SMTP_HOST),
+				user: Boolean(process.env.SMTP_USER),
+				password: Boolean(process.env.SMTP_PASS),
+				from: Boolean(process.env.MAIL_FROM),
+				replyTo: Boolean(process.env.MAIL_REPLY_TO),
+			},
+		});
+	}
+
 	if (req.method === "POST" && url.pathname === "/api/orders") {
 		try {
 			const order = JSON.parse(await readBody(req));
