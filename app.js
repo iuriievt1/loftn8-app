@@ -175,6 +175,12 @@ const collectionBySlug = (slug) => collections.find((c) => c.slug === slug);
 const shortTitle = (title) =>
 	title.replace("SINNER ", "").replace("MOBILE ", "");
 const apiUrl = (path) => `${API_BASE_URL.replace(/\/$/, "")}${path}`;
+function warmOrderApi() {
+	if (!API_BASE_URL) return;
+	setTimeout(() => {
+		fetch(apiUrl("/api/health"), { mode: "cors" }).catch(() => {});
+	}, 900);
+}
 const normalizeText = (value) =>
 	String(value || "")
 		.toLowerCase()
@@ -1050,4 +1056,5 @@ document.addEventListener("pointerup", (event) => {
 });
 
 renderCart();
+warmOrderApi();
 route();

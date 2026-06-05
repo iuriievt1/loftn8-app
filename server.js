@@ -34,6 +34,10 @@ const server = http.createServer(async (req, res) => {
 		return res.end();
 	}
 
+	if (req.method === "GET" && url.pathname === "/api/health") {
+		return json(res, 200, { ok: true });
+	}
+
 	if (req.method === "POST" && url.pathname === "/api/orders") {
 		try {
 			const order = JSON.parse(await readBody(req));
@@ -49,8 +53,7 @@ const server = http.createServer(async (req, res) => {
 			};
 			writeOrders(orders);
 			const orderText = `Новый заказ ${order.orderId}\n\n${formatOrder(order)}`;
-			await notifyAdmin(orderText);
-			await notifyCustomer(order, orderText);
+			dispatchOrderNotifications(order, orderText);
 			return json(res, 200, { ok: true, orderId: order.orderId });
 		} catch (error) {
 			return json(res, 500, { ok: false, error: error.message });
@@ -214,6 +217,14 @@ async function notifyAdmin(text) {
 				}),
 			}).catch(() => {}),
 		),
+	);
+}
+
+function dispatchOrderNotifications(order, orderText) {
+	Promise.all([notifyAdmin(orderText), notifyCustomer(order, orderText)]).catch(
+		(error) => {
+			console.error("Order notification failed:", error.message);
+		},
 	);
 }
 
