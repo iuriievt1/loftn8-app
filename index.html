@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>farshiki store</title>
+    <meta
+      name="description"
+      content="farshiki store - темный магазин одежды и аксессуаров для дороги, города и ночных маршрутов."
+    />
+    <link rel="stylesheet" href="./styles.css?v=35" />
+  </head>
+  <body>
+    <div class="announcement">БЕСПЛАТНАЯ ДОСТАВКА ОТ 10 000 ₽</div>
+
+    <header class="site-header">
+      <nav class="nav-left" aria-label="Основная навигация">
+        <a href="#/collections/store">МАГАЗИН</a>
+        <a href="#/pages/contact">ПОМОЩЬ</a>
+      </nav>
+
+      <a class="brand" href="#/" aria-label="farshiki store">FARSHIKI</a>
+
+      <nav class="nav-right" aria-label="Инструменты">
+        <button class="icon-button" type="button" data-action="search" aria-label="Поиск">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 5 5"></path></svg>
+        </button>
+        <button class="icon-button" type="button" data-action="cart" aria-label="Корзина">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l1 13H5L6 8Z"></path><path d="M9 8a3 3 0 0 1 6 0"></path></svg>
+          <span data-cart-count></span>
+        </button>
+      </nav>
+
+      <button class="menu-button" type="button" data-action="menu">МЕНЮ</button>
+    </header>
+
+    <aside class="mobile-menu" data-mobile-menu aria-hidden="true">
+      <button class="close-button close-x" type="button" data-action="close-menu" aria-label="Закрыть меню">×</button>
+      <a href="#/collections/store">МАГАЗИН</a>
+      <a href="#/collections/accessories">АКСЕССУАРЫ</a>
+      <a href="#/pages/contact">ПОМОЩЬ</a>
+    </aside>
+
+    <main id="app" class="app-shell" tabindex="-1"></main>
+
+    <footer class="site-footer">
+      <section>
+        <h2>ССЫЛКИ</h2>
+        <a href="#/pages/contact">Помощь</a>
+        <a href="#/policies/shipping-policy">Доставка</a>
+        <a href="#/policies/refund-policy">Возврат</a>
+        <a href="#/collections/store">Магазин</a>
+      </section>
+      <section>
+        <h2 class="footer-brand">FARSHIKI</h2>
+        <p>[ Выбирай свой маршрут и не проси разрешения ]</p>
+        <div class="footer-socials" aria-label="Социальные сети">
+          <a class="social-icon-link" href="https://www.instagram.com/farsh.prod/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+            <span class="social-icon-slot" aria-hidden="true"><img src="./assets/media/icon-instagram.png" alt="" loading="lazy" /></span>
+          </a>
+          <a class="social-icon-link" href="https://t.me/farshikostore" target="_blank" rel="noopener noreferrer" aria-label="Telegram">
+            <span class="social-icon-slot" aria-hidden="true"><img src="./assets/media/icon-telegram.png" alt="" loading="lazy" /></span>
+          </a>
+        </div>
+      </section>
+    </footer>
+
+    <div class="overlay" data-overlay hidden></div>
+
+    <aside class="drawer" data-cart-drawer aria-hidden="true">
+      <div class="drawer-head">
+        <h2>КОРЗИНА</h2>
+        <button class="close-button close-x" type="button" data-action="close-cart" aria-label="Закрыть">×</button>
+      </div>
+      <div data-cart-body></div>
+    </aside>
+
+    <section class="search-panel" data-search-panel aria-hidden="true">
+      <div class="search-head">
+        <label for="search-input">ПОИСК</label>
+        <button class="close-button close-x" type="button" data-action="close-search" aria-label="Закрыть">×</button>
+      </div>
+      <input id="search-input" type="search" placeholder="Название товара" autocomplete="off" />
+      <div data-search-results></div>
+    </section>
+
+    <script src="./app.js?v=36"></script>
+  </body>
+</html>
