@@ -1,8 +1,8 @@
 const BOT_USERNAME = "farshikistore";
 const STORE_EMAIL = "farsh.inc@hotmail.com";
 const INSTAGRAM_URL = "https://www.instagram.com/farsh.prod/";
-const TELEGRAM_URL = "https://t.me/farshikostore";
-const TELEGRAM_HANDLE = "@farshikostore";
+const TELEGRAM_URL = "https://t.me/farshikistore";
+const TELEGRAM_HANDLE = "@farshikistore";
 const API_BASE_URL = "https://farshiki.onrender.com";
 
 const products = [
@@ -928,10 +928,13 @@ async function completeCheckout(form) {
 	document.querySelector("[data-cart-body]").innerHTML = `
     <div class="order-success">
       <h3>ЗАКАЗ ОТПРАВЛЕН</h3>
-      <p>Номер заказа: ${orderId}. Мы получили заявку и скоро свяжемся с тобой.</p>
-      <a class="primary-button" href="#/collections/store" data-action="close-cart">В МАГАЗИН</a>
+      <p>Номер заказа: ${orderId}. Сейчас откроем Telegram, чтобы продолжить диалог.</p>
+      <a class="primary-button" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">НАПИСАТЬ В TELEGRAM</a>
     </div>
   `;
+	setTimeout(() => {
+		window.location.href = TELEGRAM_URL;
+	}, 900);
 }
 
 function setProductSlide(slug, index) {
