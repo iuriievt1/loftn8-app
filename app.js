@@ -932,9 +932,7 @@ async function completeCheckout(form) {
       <a class="primary-button" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">НАПИСАТЬ В TELEGRAM</a>
     </div>
   `;
-	setTimeout(() => {
-		window.location.href = TELEGRAM_URL;
-	}, 900);
+	window.location.assign(TELEGRAM_URL);
 }
 
 function setProductSlide(slug, index) {
