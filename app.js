@@ -175,6 +175,12 @@ const collectionBySlug = (slug) => collections.find((c) => c.slug === slug);
 const shortTitle = (title) =>
 	title.replace("SINNER ", "").replace("MOBILE ", "");
 const apiUrl = (path) => `${API_BASE_URL.replace(/\/$/, "")}${path}`;
+function telegramOrderUrl(orderId) {
+	const text = encodeURIComponent(
+		`Здравствуйте! Я оформил заказ ${orderId}. Хочу продолжить оформление.`,
+	);
+	return `${TELEGRAM_URL}?text=${text}`;
+}
 function warmOrderApi() {
 	if (!API_BASE_URL) return;
 	setTimeout(() => {
@@ -925,14 +931,15 @@ async function completeCheckout(form) {
 	state.cart = [];
 	state.checkout = false;
 	persistCart();
+	const telegramUrl = telegramOrderUrl(orderId);
 	document.querySelector("[data-cart-body]").innerHTML = `
     <div class="order-success">
       <h3>ЗАКАЗ ОТПРАВЛЕН</h3>
       <p>Номер заказа: ${orderId}. Сейчас откроем Telegram, чтобы продолжить диалог.</p>
-      <a class="primary-button" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">НАПИСАТЬ В TELEGRAM</a>
+      <a class="primary-button" href="${telegramUrl}" target="_blank" rel="noopener noreferrer">НАПИСАТЬ В TELEGRAM</a>
     </div>
   `;
-	window.location.assign(TELEGRAM_URL);
+	window.location.assign(telegramUrl);
 }
 
 function setProductSlide(slug, index) {
