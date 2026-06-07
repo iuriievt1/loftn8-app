@@ -61,6 +61,11 @@ const server = http.createServer(async (req, res) => {
 		return json(res, 200, result);
 	}
 
+	if (req.method === "GET" && url.pathname === "/api/debug/test-telegram") {
+		const result = await testTelegram();
+		return json(res, 200, result);
+	}
+
 	if (req.method === "POST" && url.pathname === "/api/orders") {
 		try {
 			const order = JSON.parse(await readBody(req));
@@ -299,6 +304,9 @@ function createMailer() {
 		host: process.env.SMTP_HOST,
 		port: Number(process.env.SMTP_PORT || 587),
 		secure: process.env.SMTP_SECURE === "true",
+		connectionTimeout: 8000,
+		greetingTimeout: 8000,
+		socketTimeout: 10000,
 		auth:
 			process.env.SMTP_USER && process.env.SMTP_PASS
 				? {
@@ -307,6 +315,40 @@ function createMailer() {
 					}
 				: undefined,
 	});
+}
+
+async function testTelegram() {
+	const result = {
+		ok: true,
+		telegram: [],
+	};
+
+	if (!process.env.BOT_TOKEN || !getTelegramChatIds().length) {
+		return {
+			ok: false,
+			telegram: [
+				{
+					ok: false,
+					error: "Missing BOT_TOKEN or TELEGRAM_CHAT_ID",
+				},
+			],
+		};
+	}
+
+	for (const chatId of getTelegramChatIds()) {
+		try {
+			await sendTelegramMessage(
+				chatId,
+				`Тест Telegram FARSHIKI\n${new Date().toISOString()}`,
+			);
+			result.telegram.push({ chatId, ok: true });
+		} catch (error) {
+			result.telegram.push({ chatId, ok: false, error: error.message });
+		}
+	}
+
+	result.ok = result.telegram.every((item) => item.ok);
+	return result;
 }
 
 async function testNotifications() {
