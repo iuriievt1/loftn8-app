@@ -74,6 +74,18 @@ const products = [
 		],
 	},
 	{
+		slug: "hoodie-reflective-black",
+		title: "Худи Reflective black",
+		price: 4990,
+		collection: "staple",
+		tags: ["apparel", "reflective"],
+		options: { size: ["S", "M", "L", "XL"] },
+		description: "",
+		details: [],
+		cardImages: [],
+		images: [],
+	},
+	{
 		slug: "black-keychain",
 		title: "Брелок черный",
 		price: 550,
@@ -124,6 +136,11 @@ const collections = [
 		slug: "accessories",
 		title: "АКСЕССУАРЫ",
 		filter: (p) => p.tags.includes("accessories"),
+	},
+	{
+		slug: "reflective-drop",
+		title: "REFLECTIVE DROP",
+		filter: (p) => p.tags.includes("reflective"),
 	},
 	{
 		slug: "apparel",
@@ -322,7 +339,7 @@ function renderHome() {
     <section class="section home-section-title">
       <h1 class="page-title">МЕРЧ</h1>
     </section>
-    <section class="hero-grid home-product-grid">${staple.map(productCard).join("")}</section>
+    <section class="hero-grid home-product-grid home-merch-grid">${staple.map(productCard).join("")}</section>
     <section class="section section-gap home-section-title">
       <h2 class="small-title">АКСЕССУАРЫ</h2>
     </section>
@@ -395,12 +412,16 @@ function renderProduct(slug) {
           </div>
         </div>
         <button class="primary-button" type="button" data-add-detail="${product.slug}">ДОБАВИТЬ В КОРЗИНУ</button>
-        <div class="product-copy">${product.description}</div>
+        ${product.description ? `<div class="product-copy">${product.description}</div>` : ""}
         <div class="accordion">
-          <details open>
+          ${
+						product.details?.length
+							? `<details open>
             <summary>Детали</summary>
             <ul>${product.details.map((d) => `<li>${d}</li>`).join("")}</ul>
-          </details>
+          </details>`
+							: ""
+					}
           <details>
             <summary>Доставка</summary>
             <p>Доставка по России рассчитывается после оформления заказа. Бесплатная доставка от 10 000 ₽.</p>
@@ -491,11 +512,15 @@ function renderPage(slug) {
 			["XS", "S", "M", "L", "XL", "XXL"],
 			[48, 51, 54, 57, 60, 63],
 		),
-		"hoodie-size-chart": sizeChart(
-			"Худи",
-			["S", "M", "L", "XL"],
-			[56, 59, 62, 65],
-		),
+		"hoodie-size-chart": `
+      <div class="page-body size-guide">
+        <h1>Размеры. Худи</h1>
+        <p class="size-guide-note">Замеры указаны в сантиметрах. Параметры могут отличаться на 1–2 см.</p>
+        <figure class="size-chart-figure">
+          <img src="./assets/products/hoodie-size-chart.png" alt="Таблица размеров худи FARSHIKI" loading="lazy">
+        </figure>
+      </div>
+    `,
 		"gift-card-store-credit-policy": policy(
 			"Подарочные карты",
 			"Подарочная карта работает как внутренний баланс магазина и применяется к будущим заказам.",

@@ -627,6 +627,27 @@ sup {
   text-align: left;
 }
 
+.size-guide-note {
+  margin: -30px 0 34px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.size-chart-figure {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.size-chart-figure img {
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
 .contact-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2241,6 +2262,16 @@ select:focus {
   row-gap: 46px;
   padding-left: 56px;
   padding-right: 56px;
+}
+
+.home-merch-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1100px) {
+  .home-merch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
 .home-section-title {
