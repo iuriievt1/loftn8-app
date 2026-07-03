@@ -87,10 +87,15 @@ button {
   gap: 38px;
 }
 
+.nav-left {
+  gap: 26px;
+}
+
 .nav-left a {
   position: relative;
   font-size: clamp(18px, 1.6vw, 27px);
   color: #fff;
+  white-space: nowrap;
 }
 
 .nav-left a:hover,
@@ -627,13 +632,6 @@ sup {
   text-align: left;
 }
 
-.size-guide-note {
-  margin: -30px 0 34px;
-  text-align: center;
-  font-size: 15px;
-  line-height: 1.4;
-}
-
 .size-chart-figure {
   margin: 0;
   display: flex;
@@ -1080,6 +1078,19 @@ sup {
   font-size: 32px;
 }
 
+.menu-new {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 7px;
+  vertical-align: middle;
+  background: #ef3845;
+  color: #fff;
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  border-radius: 3px;
+}
+
 .journal-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1111,6 +1122,10 @@ sup {
   .nav-left,
   .nav-right {
     gap: 18px;
+  }
+
+  .nav-left a[href="#/collections/reflective-drop"] {
+    display: none;
   }
 
   .hero-grid,
@@ -2257,19 +2272,15 @@ select:focus {
 
 .home-product-grid {
   width: min(100%, 1560px);
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   column-gap: 28px;
   row-gap: 46px;
   padding-left: 56px;
   padding-right: 56px;
 }
 
-.home-merch-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-}
-
 @media (max-width: 1100px) {
-  .home-merch-grid {
+  .home-product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }

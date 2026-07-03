@@ -7,6 +7,33 @@ const API_BASE_URL = "https://farshiki.onrender.com";
 
 const products = [
 	{
+		slug: "hoodie-reflective-black",
+		title: "Худи Reflective black",
+		price: 5990,
+		collection: "staple",
+		tags: ["apparel", "reflective"],
+		options: { size: ["S", "M", "L", "XL"] },
+		description:
+			"Представляем худи Reflective black, выполненное из высококачественного материала (смесь 88% хлопка и 12% полиэстера), которая обеспечивает исключительный комфорт. Эта модель из плотного хлопкового футера (380 грамм) отличается свободным оверсайз кроем, идеально подходящим для создания многослойных образов. Худи украшено светоотражающим логотипом «FARSHIKI» и девизом «F😊CK SPEED LIMIT» — оно создано, чтобы выделять вас из толпы и придавать стильный вид.",
+		details: [
+			"Плотность ткани: 380 г/м2",
+			"Состав: 88% хлопок, 12% полиэстер",
+			"Микроначес с пич-эффектом",
+			"Свободная посадка",
+			"Светоотражающий принт спереди и на спине",
+		],
+		cardImages: [
+			{ src: "./assets/products/reflective-black-1.jpg", label: "Худи Reflective black" },
+			{ src: "./assets/products/reflective-black-2.jpg", label: "Худи Reflective black" },
+		],
+		images: [
+			{ src: "./assets/products/reflective-black-1.jpg", label: "Худи Reflective black" },
+			{ src: "./assets/products/reflective-black-2.jpg", label: "ВИД СЗАДИ" },
+			{ src: "./assets/products/reflective-black-3.jpg", label: "НА ДОРОГЕ" },
+			{ src: "./assets/products/hoodie-size-chart.png", label: "РАЗМЕРНАЯ СЕТКА" },
+		],
+	},
+	{
 		slug: "hoodie-base-black",
 		title: "Худи BASE Black",
 		price: 4990,
@@ -14,7 +41,7 @@ const products = [
 		tags: ["apparel", "popular"],
 		options: { size: ["S", "M", "L", "XL"] },
 		description:
-			"Плотное черное худи BASE Black для города, дороги и холодных вечеров. Мягкий микроначес с пич-эффектом дает приятную посадку к телу, а состав с высоким содержанием хлопка держит форму и ощущается уверенно каждый день.",
+			"Представляем худи Base Black, выполненное из высококачественного материала (смесь 88% хлопка и 12% полиэстера), которая обеспечивает исключительный комфорт. Эта модель из плотного хлопкового футера (380 грамм) отличается свободным оверсайз кроем, идеально подходящим для создания многослойных образов. Худи украшено логотипом «FARSHIKI» и девизом «RIDE HARD OR STAY HOME» — оно создано, чтобы выделять вас из толпы и придавать стильный вид.",
 		details: [
 			"Плотность ткани: 380 г/м2",
 			"Состав: 88% хлопок, 12% полиэстер",
@@ -48,7 +75,7 @@ const products = [
 		tags: ["apparel", "popular"],
 		options: { size: ["S", "M", "L", "XL"] },
 		description:
-			"Плотное розовое худи BASE Pink для города, дороги и холодных вечеров. Мягкий микроначес с пич-эффектом дает приятную посадку к телу, а состав с высоким содержанием хлопка держит форму и ощущается уверенно каждый день.",
+			"Представляем худи Base Pink, выполненное из высококачественного материала (смесь 88% хлопка и 12% полиэстера), которая обеспечивает исключительный комфорт. Эта модель из плотного хлопкового футера (380 грамм) отличается свободным оверсайз кроем, идеально подходящим для создания многослойных образов. Худи украшено логотипом «FARSHIKI» и девизом «RIDE HARD OR STAY HOME» — оно создано, чтобы выделять вас из толпы и придавать стильный вид.",
 		details: [
 			"Плотность ткани: 380 г/м2",
 			"Состав: 88% хлопок, 12% полиэстер",
@@ -72,18 +99,6 @@ const products = [
 			{ src: "./assets/products/base-pink-3.jpg", label: "ОБРАЗ" },
 			{ src: "./assets/products/hoodie-size-chart.png", label: "РАЗМЕРНАЯ СЕТКА" },
 		],
-	},
-	{
-		slug: "hoodie-reflective-black",
-		title: "Худи Reflective black",
-		price: 4990,
-		collection: "staple",
-		tags: ["apparel", "reflective"],
-		options: { size: ["S", "M", "L", "XL"] },
-		description: "",
-		details: [],
-		cardImages: [],
-		images: [],
 	},
 	{
 		slug: "black-keychain",
@@ -126,6 +141,22 @@ const products = [
 			{ src: "./assets/products/jet-tags.jpg", label: "Брелок белый" },
 		],
 		images: [{ src: "./assets/products/jet-tags.jpg", label: "Брелок белый" }],
+	},
+	{
+		slug: "sticker-farshiki",
+		title: "Наклейка Farshiki",
+		price: 300,
+		collection: "accessories",
+		tags: ["accessories", "reflective"],
+		options: {},
+		description: "Светоотражающая наклейка Farshiki.",
+		details: ["Светоотражающий материал", "Размеры: 20 × 6 см"],
+		cardImages: [
+			{ src: "./assets/products/sticker-farshiki.jpg", label: "Наклейка Farshiki" },
+		],
+		images: [
+			{ src: "./assets/products/sticker-farshiki.jpg", label: "Наклейка Farshiki" },
+		],
 	},
 ];
 
@@ -514,8 +545,7 @@ function renderPage(slug) {
 		),
 		"hoodie-size-chart": `
       <div class="page-body size-guide">
-        <h1>Размеры. Худи</h1>
-        <p class="size-guide-note">Замеры указаны в сантиметрах. Параметры могут отличаться на 1–2 см.</p>
+        <h1>Размеры худи</h1>
         <figure class="size-chart-figure">
           <img src="./assets/products/hoodie-size-chart.png" alt="Таблица размеров худи FARSHIKI" loading="lazy">
         </figure>
@@ -639,6 +669,8 @@ function updateActiveNav(path) {
 				path.startsWith("/collections/store")) ||
 			(href === "/collections/staple" &&
 				path.startsWith("/collections/staple")) ||
+			(href === "/collections/reflective-drop" &&
+				path.startsWith("/collections/reflective-drop")) ||
 			(href === "/pages/contact" && path.startsWith("/pages/contact"));
 		if (active) link.setAttribute("aria-current", "page");
 		else link.removeAttribute("aria-current");
@@ -784,7 +816,7 @@ function renderCheckout() {
           </select>
         </label>
         <label class="wide">Комментарий
-          <textarea name="comment" placeholder="Размеры, город, удобный способ связи"></textarea>
+          <textarea name="comment" placeholder="Оставь свой телеграм или инстаграм для связи"></textarea>
         </label>
       </div>
       <p class="delivery-note">Доставка не входит в стоимость товаров и оплачивается покупателем отдельно после согласования способа отправки.</p>
