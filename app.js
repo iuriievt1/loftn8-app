@@ -393,7 +393,7 @@ function renderCollection(slug) {
 	const items = products.filter(collection.filter);
 	const isStore = collection.slug === "store";
 	app.innerHTML = `
-    <section class="section">
+    <section class="section home-section-title">
       <h1 class="page-title">${collection.title}</h1>
     </section>
     ${
