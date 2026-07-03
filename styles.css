@@ -2865,3 +2865,39 @@ select:focus {
 .instagram-media-card {
   border: 0;
 }
+
+/* --- Единое расположение заголовков всех контентных страниц --- */
+/* Все заголовки слева, у верха, с одинаковым левым отступом — как в магазине. */
+.page-body {
+  width: min(980px, calc(100% - 112px));
+  margin: 0;
+  padding: 60px 0 110px 56px;
+}
+
+.page-body h1 {
+  text-align: left;
+}
+
+.size-chart-figure {
+  justify-content: flex-start;
+}
+
+/* Страница «Помощь»: тоже слева и у верха (без центрирования). */
+.support-page {
+  min-height: auto;
+  justify-items: start;
+  align-content: start;
+  text-align: left;
+}
+
+.support-page p {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media (max-width: 760px) {
+  .page-body {
+    width: 100%;
+    padding: 40px 18px 90px;
+  }
+}
