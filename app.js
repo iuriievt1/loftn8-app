@@ -23,13 +23,16 @@ const products = [
 			"Светоотражающий принт спереди и на спине",
 		],
 		cardImages: [
-			{ src: "./assets/products/reflective-black-1.jpg", label: "Худи Reflective black" },
-			{ src: "./assets/products/reflective-black-2.jpg", label: "Худи Reflective black" },
+			{ src: "./assets/products/reflective-black-01.jpg", label: "Худи Reflective black" },
+			{ src: "./assets/products/reflective-black-02.jpg", label: "Худи Reflective black" },
 		],
 		images: [
-			{ src: "./assets/products/reflective-black-1.jpg", label: "Худи Reflective black" },
-			{ src: "./assets/products/reflective-black-2.jpg", label: "ВИД СЗАДИ" },
-			{ src: "./assets/products/reflective-black-3.jpg", label: "НА ДОРОГЕ" },
+			{ src: "./assets/products/reflective-black-01.jpg", label: "Худи Reflective black" },
+			{ src: "./assets/products/reflective-black-02.jpg", label: "ВИД СЗАДИ" },
+			{ src: "./assets/products/reflective-black-03.jpg", label: "НА ДОРОГЕ" },
+			{ src: "./assets/products/reflective-black-04.jpg", label: "ЗАЕЗД" },
+			{ src: "./assets/products/reflective-black-05.jpg", label: "ОБРАЗ" },
+			{ src: "./assets/products/reflective-black-06.jpg", label: "ДЕТАЛЬ" },
 			{ src: "./assets/products/hoodie-size-chart.png", label: "РАЗМЕРНАЯ СЕТКА" },
 		],
 	},
@@ -117,9 +120,13 @@ const products = [
 			"Подходит для ключей, сумки или рюкзака",
 		],
 		cardImages: [
-			{ src: "./assets/products/jet-tags.jpg", label: "Брелок черный" },
+			{ src: "./assets/products/keychain-black-1.jpg", label: "Брелок черный" },
+			{ src: "./assets/products/keychain-black-2.jpg", label: "Брелок черный" },
 		],
-		images: [{ src: "./assets/products/jet-tags.jpg", label: "Брелок черный" }],
+		images: [
+			{ src: "./assets/products/keychain-black-1.jpg", label: "Брелок черный" },
+			{ src: "./assets/products/keychain-black-2.jpg", label: "Брелок черный" },
+		],
 	},
 	{
 		slug: "white-keychain",
@@ -138,9 +145,13 @@ const products = [
 			"Подходит для ключей, сумки или рюкзака",
 		],
 		cardImages: [
-			{ src: "./assets/products/jet-tags.jpg", label: "Брелок белый" },
+			{ src: "./assets/products/keychain-white-1.jpg", label: "Брелок белый" },
+			{ src: "./assets/products/keychain-white-2.jpg", label: "Брелок белый" },
 		],
-		images: [{ src: "./assets/products/jet-tags.jpg", label: "Брелок белый" }],
+		images: [
+			{ src: "./assets/products/keychain-white-1.jpg", label: "Брелок белый" },
+			{ src: "./assets/products/keychain-white-2.jpg", label: "Брелок белый" },
+		],
 	},
 	{
 		slug: "sticker-farshiki",
@@ -362,7 +373,7 @@ function renderHome() {
 	const accessories = products.filter((p) => p.collection === "accessories");
 	app.innerHTML = `
     <section class="hero">
-      <video class="hero-video" src="./assets/video/main.mov" autoplay muted loop playsinline></video>
+      <video class="hero-video" src="./assets/video/hero.mp4" autoplay muted loop playsinline></video>
     </section>
     <section class="gif-band" aria-label="Место для GIF">
       <video class="home-gif" src="./assets/media/video-gif.mp4" autoplay muted loop playsinline preload="metadata"></video>
