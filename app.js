@@ -4,6 +4,7 @@ const INSTAGRAM_URL = "https://www.instagram.com/farsh.prod/";
 const TELEGRAM_URL = "https://t.me/farshikistore";
 const TELEGRAM_HANDLE = "@farshikistore";
 const API_BASE_URL = "https://farshiki.onrender.com";
+const PROMO_CODES = { FARSHIKI: 10 };
 
 const products = [
 	{
@@ -216,6 +217,8 @@ const state = {
 	qty: 1,
 	checkout: false,
 	productSlides: {},
+	promo: null,
+	summaryOpen: false,
 };
 
 let instagramCarouselTimer = null;
@@ -710,6 +713,29 @@ function cartTotal() {
 	);
 }
 
+function normalizePromo(code) {
+	return String(code || "").trim().toUpperCase();
+}
+
+function findPromo(code) {
+	const normalized = normalizePromo(code);
+	const percent = PROMO_CODES[normalized];
+	return percent ? { code: normalized, percent } : null;
+}
+
+function cartDiscount() {
+	if (!state.promo) return 0;
+	return Math.round((cartTotal() * state.promo.percent) / 100);
+}
+
+function cartTotalWithDiscount() {
+	return cartTotal() - cartDiscount();
+}
+
+function promoAppliedText(promo) {
+	return `Промокод ${promo.code} применён: −${promo.percent}%`;
+}
+
 function changeCartQty(key, delta) {
 	const line = state.cart.find((item) => item.key === key);
 	if (!line) return;
@@ -773,71 +799,192 @@ function renderCart() {
 }
 
 function renderCheckout() {
-	const orderPreview = state.cart
+	const count = state.cart.reduce((sum, item) => sum + item.qty, 0);
+	const summaryItems = state.cart
 		.map((item) => {
 			const product = productBySlug(item.slug);
-			return `${product.title} x ${item.qty} - ${money(product.price * item.qty)}`;
+			const thumb = productThumb(product);
+			const options = Object.values(item.options).filter(Boolean).join(" / ");
+			return `
+          <div class="summary-item">
+            <span class="summary-thumb">
+              ${thumb.src ? `<img src="${escapeAttr(thumb.src)}" alt="${escapeAttr(product.title)}" loading="lazy">` : ""}
+              <b class="summary-qty">${item.qty}</b>
+            </span>
+            <span class="summary-info">
+              <span class="summary-name">${product.title}</span>
+              ${options ? `<span class="summary-option">${options}</span>` : ""}
+            </span>
+            <span class="summary-price">${money(product.price * item.qty)}</span>
+          </div>
+        `;
 		})
-		.join("\n");
+		.join("");
+	const promoCode = state.promo ? state.promo.code : "";
 
 	return `
     <form class="checkout-form" data-checkout-form>
-      <button class="checkout-back" type="button" data-back-to-cart aria-label="Назад в корзину">←</button>
-      <h3>Оформление заказа</h3>
-      <p class="checkout-summary">${orderPreview.replaceAll("\n", "<br>")}</p>
-      <div class="checkout-grid">
-        <label>Имя
-          <input name="firstName" autocomplete="given-name" required>
-        </label>
-        <label>Фамилия
-          <input name="lastName" autocomplete="family-name" required>
-        </label>
-        <label>Телефон
-          <input name="phone" type="tel" autocomplete="tel" required>
-        </label>
-        <label>Email
-          <input name="email" type="email" autocomplete="email" required>
-        </label>
-        <label>Город
-          <input name="city" autocomplete="address-level2" required>
-        </label>
-        <label>Индекс
-          <input name="postalCode" inputmode="numeric" autocomplete="postal-code" required>
-        </label>
-        <label>Улица
-          <input name="street" autocomplete="street-address" required>
-        </label>
-        <label>Дом
-          <input name="house" required>
-        </label>
-        <label>Квартира / офис
-          <input name="apartment">
-        </label>
-        <label>Корпус / подъезд
-          <input name="building">
-        </label>
-        <label class="wide">Способ доставки
-          <select name="delivery" required>
-            <option value="Почта России">Почта России</option>
-            <option value="СДЭК">СДЭК</option>
-            <option value="Boxberry / ПВЗ">Boxberry / ПВЗ</option>
-            <option value="Яндекс Доставка">Яндекс Доставка</option>
-            <option value="ОЗОН">ОЗОН</option>
-            <option value="По договоренности">По договоренности</option>
-          </select>
-        </label>
-        <label class="wide">Комментарий
-          <textarea name="comment" placeholder="Оставь свой телеграм или инстаграм для связи"></textarea>
-        </label>
+      <div class="checkout-top">
+        <button class="checkout-back" type="button" data-back-to-cart aria-label="Назад в корзину">←</button>
+        <h3>Оформление заказа</h3>
       </div>
+
+      <section class="order-summary ${state.summaryOpen ? "is-open" : ""}" data-order-summary>
+        <button class="summary-toggle" type="button" data-summary-toggle aria-expanded="${state.summaryOpen ? "true" : "false"}">
+          <span class="summary-toggle-label">Состав заказа <small>(${count})</small><i class="summary-chevron" aria-hidden="true"></i></span>
+          <span class="summary-toggle-total" data-summary-total>${money(cartTotalWithDiscount())}</span>
+        </button>
+        <div class="summary-body">${summaryItems}</div>
+      </section>
+
+      <fieldset class="checkout-section">
+        <legend>Контакты</legend>
+        <div class="checkout-fields">
+          <div class="field-row">
+            <label class="field">
+              <input name="firstName" autocomplete="given-name" placeholder=" " required>
+              <span>Имя</span>
+            </label>
+            <label class="field">
+              <input name="lastName" autocomplete="family-name" placeholder=" " required>
+              <span>Фамилия</span>
+            </label>
+          </div>
+          <label class="field">
+            <input name="middleName" autocomplete="additional-name" placeholder=" ">
+            <span>Отчество (необязательно)</span>
+          </label>
+          <label class="field">
+            <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder=" " required>
+            <span>Номер телефона</span>
+          </label>
+          <label class="field">
+            <input name="email" type="email" inputmode="email" autocomplete="email" placeholder=" " required>
+            <span>Email</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="checkout-section">
+        <legend>Доставка</legend>
+        <div class="checkout-fields">
+          <label class="field field-select">
+            <select name="delivery" required>
+              <option value="Почта России">Почта России</option>
+              <option value="СДЭК">СДЭК</option>
+              <option value="Boxberry / ПВЗ">Boxberry / ПВЗ</option>
+              <option value="Яндекс Доставка">Яндекс Доставка</option>
+              <option value="ОЗОН">ОЗОН</option>
+              <option value="По договоренности">По договоренности</option>
+            </select>
+            <span>Способ доставки</span>
+          </label>
+          <label class="field">
+            <input name="city" autocomplete="address-level2" placeholder=" " required>
+            <span>Город</span>
+          </label>
+          <label class="field">
+            <input name="pickupAddress" autocomplete="street-address" placeholder=" " required>
+            <span>Адрес ПВЗ</span>
+          </label>
+          <label class="field field-textarea">
+            <textarea name="comment" rows="3" placeholder=" "></textarea>
+            <span>Комментарий (необязательно)</span>
+          </label>
+          <small class="field-hint">Оставь свой телеграм или инстаграм для связи.</small>
+        </div>
+      </fieldset>
+
+      <section class="checkout-promo">
+        <div class="promo-row">
+          <label class="field field-promo">
+            <input name="promoCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder=" " value="${escapeAttr(promoCode)}" data-promo-input>
+            <span>Промокод</span>
+          </label>
+          <button class="promo-apply" type="button" data-apply-promo>Применить</button>
+        </div>
+        <p class="promo-note ${state.promo ? "is-ok" : ""}" data-promo-note aria-live="polite">${state.promo ? promoAppliedText(state.promo) : ""}</p>
+      </section>
+
+      <div class="checkout-totals" data-checkout-totals>${renderCheckoutTotals()}</div>
+
       <p class="delivery-note">Доставка не входит в стоимость товаров и оплачивается покупателем отдельно после согласования способа отправки.</p>
       <label class="consent-row">
         <input type="checkbox" name="consent" required>
         <span>Я согласен на обработку данных для оформления заказа и связи по доставке.</span>
       </label>
-      <button class="primary-button" type="submit">ЗАКАЗАТЬ</button>
+      <button class="primary-button checkout-submit" type="submit">ЗАКАЗАТЬ</button>
+      <nav class="checkout-links" aria-label="Условия магазина">
+        <a href="#/policies/refund-policy">Возврат</a>
+        <a href="#/policies/shipping-policy">Доставка</a>
+        <a href="#/policies/privacy-policy">Конфиденциальность</a>
+        <a href="#/policies/terms-of-service">Условия</a>
+        <a href="#/pages/contact">Контакты</a>
+      </nav>
     </form>
   `;
+}
+
+function renderCheckoutTotals() {
+	const subtotal = cartTotal();
+	const discount = cartDiscount();
+	return `
+    <div class="totals-row"><span>Товары</span><span>${money(subtotal)}</span></div>
+    ${
+			state.promo
+				? `<div class="totals-row totals-discount"><span>Скидка ${state.promo.code} −${state.promo.percent}%</span><span>−${money(discount)}</span></div>`
+				: ""
+		}
+    <div class="totals-row"><span>Доставка</span><span class="totals-muted">рассчитывается отдельно</span></div>
+    <div class="totals-row totals-final"><span>Итого</span><span>${money(subtotal - discount)}</span></div>
+  `;
+}
+
+function updateCheckoutTotals() {
+	const totals = document.querySelector("[data-checkout-totals]");
+	if (totals) totals.innerHTML = renderCheckoutTotals();
+	const summaryTotal = document.querySelector("[data-summary-total]");
+	if (summaryTotal) summaryTotal.textContent = money(cartTotalWithDiscount());
+}
+
+function setPromoNote(form, text, status = "") {
+	const note = form.querySelector("[data-promo-note]");
+	if (!note) return;
+	note.textContent = text;
+	note.classList.remove("is-ok", "is-error");
+	if (status) note.classList.add(status);
+}
+
+function applyPromo(form) {
+	const input = form.querySelector("[data-promo-input]");
+	const code = normalizePromo(input ? input.value : "");
+	if (!code) {
+		const hadPromo = Boolean(state.promo);
+		state.promo = null;
+		setPromoNote(form, hadPromo ? "" : "Введи промокод", hadPromo ? "" : "is-error");
+		updateCheckoutTotals();
+		return false;
+	}
+	const promo = findPromo(code);
+	if (!promo) {
+		state.promo = null;
+		setPromoNote(form, "Промокод не найден", "is-error");
+		updateCheckoutTotals();
+		return false;
+	}
+	state.promo = promo;
+	if (input) input.value = promo.code;
+	setPromoNote(form, promoAppliedText(promo), "is-ok");
+	updateCheckoutTotals();
+	return true;
+}
+
+function toggleOrderSummary(button) {
+	const summary = button.closest("[data-order-summary]");
+	if (!summary) return;
+	state.summaryOpen = !summary.classList.contains("is-open");
+	summary.classList.toggle("is-open", state.summaryOpen);
+	button.setAttribute("aria-expanded", state.summaryOpen ? "true" : "false");
 }
 
 function openCart() {
@@ -922,13 +1069,35 @@ function renderSearch(query) {
 
 async function completeCheckout(form) {
 	if (!state.cart.length) return;
+	const promoInput = form.querySelector("[data-promo-input]");
+	const typedPromo = normalizePromo(promoInput ? promoInput.value : "");
+	if (typedPromo && !findPromo(typedPromo)) {
+		applyPromo(form);
+		if (promoInput) promoInput.focus();
+		return;
+	}
+	state.promo = typedPromo ? findPromo(typedPromo) : null;
+	updateCheckoutTotals();
+
 	const submitButton = form.querySelector('button[type="submit"]');
 	if (submitButton) {
 		submitButton.disabled = true;
 		submitButton.textContent = "ОТПРАВЛЯЕМ";
 	}
 	const orderId = "FS-" + Date.now().toString().slice(-7);
-	const customer = Object.fromEntries(new FormData(form).entries());
+	const data = new FormData(form);
+	const field = (name) => String(data.get(name) || "").trim();
+	const customer = {
+		firstName: field("firstName"),
+		lastName: field("lastName"),
+		middleName: field("middleName"),
+		phone: field("phone"),
+		email: field("email"),
+		delivery: field("delivery"),
+		city: field("city"),
+		pickupAddress: field("pickupAddress"),
+		comment: field("comment"),
+	};
 	const items = state.cart.map((item) => {
 		const product = productBySlug(item.slug);
 		return {
@@ -939,29 +1108,34 @@ async function completeCheckout(form) {
 			total: product.price * item.qty,
 		};
 	});
+	const subtotal = cartTotal();
+	const discount = cartDiscount();
 	const order = {
 		orderId,
 		createdAt: new Date().toISOString(),
 		customer,
 		items,
-		total: cartTotal(),
+		subtotal,
+		promoCode: state.promo ? state.promo.code : "",
+		promoPercent: state.promo ? state.promo.percent : 0,
+		discount,
+		total: subtotal - discount,
 		deliveryIncluded: false,
 		status: "created",
 	};
 	localStorage.setItem("farshiki-order-" + orderId, JSON.stringify(order));
 
+	const fullName = [customer.lastName, customer.firstName, customer.middleName]
+		.filter(Boolean)
+		.join(" ");
 	const orderText = [
 		`Заказ: ${orderId}`,
-		`Клиент: ${customer.firstName} ${customer.lastName}`,
+		`Клиент: ${fullName}`,
 		`Телефон: ${customer.phone}`,
 		`Email: ${customer.email}`,
-		`Город: ${customer.city}`,
-		`Индекс: ${customer.postalCode}`,
-		`Улица: ${customer.street}`,
-		`Дом: ${customer.house}`,
-		`Квартира/офис: ${customer.apartment || "-"}`,
-		`Корпус/подъезд: ${customer.building || "-"}`,
 		`Доставка: ${customer.delivery}`,
+		`Город: ${customer.city}`,
+		`Адрес ПВЗ: ${customer.pickupAddress}`,
 		`Комментарий: ${customer.comment || "-"}`,
 		"",
 		"Товары:",
@@ -972,7 +1146,11 @@ async function completeCheckout(form) {
 			return `- ${item.title}, ${options}, x${item.qty}, ${money(item.total)}`;
 		}),
 		"",
-		`Итого по товарам: ${money(order.total)}`,
+		`Товары: ${money(subtotal)}`,
+		...(state.promo
+			? [`Промокод ${state.promo.code} −${state.promo.percent}%: −${money(discount)}`]
+			: []),
+		`Итого: ${money(order.total)}`,
 		"Доставка: оплачивается покупателем отдельно",
 	].join("\n");
 
@@ -993,11 +1171,14 @@ async function completeCheckout(form) {
 		const note = form.querySelector(".checkout-error") || document.createElement("p");
 		note.className = "checkout-error";
 		note.textContent = "Не получилось отправить заказ. Проверь связь и попробуй еще раз.";
-		form.append(note);
+		if (submitButton) submitButton.before(note);
+		else form.append(note);
 		return;
 	}
 	state.cart = [];
 	state.checkout = false;
+	state.promo = null;
+	state.summaryOpen = false;
 	persistCart();
 	const telegramUrl = telegramOrderUrl(orderId);
 	document.querySelector("[data-cart-body]").innerHTML = `
@@ -1056,8 +1237,16 @@ document.addEventListener("click", (event) => {
 
 	if (target.dataset.openCheckout !== undefined) {
 		state.checkout = true;
+		state.summaryOpen = !window.matchMedia("(max-width: 760px)").matches;
 		renderCart();
 	}
+
+	if (target.dataset.applyPromo !== undefined) {
+		const form = target.closest("[data-checkout-form]");
+		if (form) applyPromo(form);
+	}
+
+	if (target.dataset.summaryToggle !== undefined) toggleOrderSummary(target);
 
 	if (target.dataset.backToCart !== undefined) {
 		state.checkout = false;
@@ -1100,6 +1289,15 @@ searchInput.addEventListener("input", (event) =>
 	renderSearch(event.target.value),
 );
 window.addEventListener("hashchange", route);
+
+document.addEventListener("keydown", (event) => {
+	if (event.key !== "Enter" || !(event.target instanceof Element)) return;
+	const input = event.target.closest("[data-promo-input]");
+	if (!input) return;
+	event.preventDefault();
+	const form = input.closest("[data-checkout-form]");
+	if (form) applyPromo(form);
+});
 
 document.addEventListener("submit", (event) => {
 	event.preventDefault();

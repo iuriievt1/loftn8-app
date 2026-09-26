@@ -207,7 +207,11 @@ function formatOrder(order) {
 		"Состав:",
 		items,
 		"",
-		`Итого за товары: ${formatMoney(order.total)}`,
+		`Товары: ${formatMoney(order.subtotal !== undefined ? order.subtotal : order.total)}`,
+		order.discount
+			? `Промокод ${order.promoCode} −${order.promoPercent}%: −${formatMoney(order.discount)}`
+			: "",
+		`Итого: ${formatMoney(order.total)}`,
 		"Доставка оплачивается отдельно после согласования.",
 		recipient ? `\nОплата:\n${recipient}` : "",
 	]

@@ -68,10 +68,11 @@ const server = http.createServer(async (req, res) => {
 
 	if (req.method === "POST" && url.pathname === "/api/orders") {
 		try {
-			const order = JSON.parse(await readBody(req));
-			if (!order.orderId || !Array.isArray(order.items)) {
+			const payload = JSON.parse(await readBody(req));
+			if (!payload.orderId || !Array.isArray(payload.items)) {
 				return json(res, 400, { ok: false, error: "Bad order payload" });
 			}
+			const order = normalizeOrder(payload);
 
 			const orders = readOrders();
 			orders[order.orderId] = {
@@ -202,6 +203,48 @@ function corsHeaders() {
 	};
 }
 
+const DEFAULT_PROMO_CODES = { FARSHIKI: 10 };
+
+function getPromoCodes() {
+	const raw = process.env.PROMO_CODES;
+	if (!raw) return DEFAULT_PROMO_CODES;
+	const codes = {};
+	for (const pair of raw.split(",")) {
+		const [code, percent] = pair
+			.split(":")
+			.map((value) => (value || "").trim());
+		if (code && Number(percent) > 0) codes[code.toUpperCase()] = Number(percent);
+	}
+	return Object.keys(codes).length ? codes : DEFAULT_PROMO_CODES;
+}
+
+function resolvePromo(code) {
+	const normalized = String(code || "").trim().toUpperCase();
+	if (!normalized) return null;
+	const percent = getPromoCodes()[normalized];
+	return percent ? { code: normalized, percent } : null;
+}
+
+function normalizeOrder(order) {
+	const items = Array.isArray(order.items) ? order.items : [];
+	const subtotal = items.reduce(
+		(sum, item) =>
+			sum +
+			(Number(item.total) || Number(item.price || 0) * Number(item.qty || 0)),
+		0,
+	);
+	const promo = resolvePromo(order.promoCode);
+	const discount = promo ? Math.round((subtotal * promo.percent) / 100) : 0;
+	return {
+		...order,
+		subtotal,
+		promoCode: promo ? promo.code : "",
+		promoPercent: promo ? promo.percent : 0,
+		discount,
+		total: subtotal - discount,
+	};
+}
+
 function formatOrder(order) {
 	const customer = order.customer || {};
 	const items = (order.items || [])
@@ -212,20 +255,46 @@ function formatOrder(order) {
 			return `- ${item.title}${options ? `, ${options}` : ""} x${item.qty}: ${formatMoney(item.total)}`;
 		})
 		.join("\n");
+	const fullName = [customer.lastName, customer.firstName, customer.middleName]
+		.map((value) => String(value || "").trim())
+		.filter(Boolean)
+		.join(" ");
+	const legacyAddress =
+		!customer.pickupAddress &&
+		(customer.street ||
+			customer.house ||
+			customer.postalCode ||
+			customer.apartment ||
+			customer.building);
+	const addressLines = legacyAddress
+		? [
+				`Индекс: ${customer.postalCode || "-"}`,
+				`Адрес: ${customer.street || "-"}, дом ${customer.house || "-"}, кв/офис ${customer.apartment || "-"}`,
+				`Корпус/подъезд: ${customer.building || "-"}`,
+			]
+		: [`Адрес ПВЗ: ${customer.pickupAddress || "-"}`];
+	const subtotal =
+		order.subtotal !== undefined
+			? Number(order.subtotal)
+			: Number(order.total || 0);
+	const promo = resolvePromo(order.promoCode);
+	const discount = promo ? Math.round((subtotal * promo.percent) / 100) : 0;
 	return [
-		`Клиент: ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
+		`Клиент: ${fullName || "-"}`,
 		`Телефон: ${customer.phone || "-"}`,
 		`Email: ${customer.email || "-"}`,
-		`Город: ${customer.city || "-"}`,
-		`Индекс: ${customer.postalCode || "-"}`,
-		`Адрес: ${customer.street || "-"}, дом ${customer.house || "-"}, кв/офис ${customer.apartment || "-"}`,
-		`Корпус/подъезд: ${customer.building || "-"}`,
 		`Доставка: ${customer.delivery || "-"}`,
+		`Город: ${customer.city || "-"}`,
+		...addressLines,
 		`Комментарий: ${customer.comment || "-"}`,
 		"",
 		items,
 		"",
-		`Итого: ${formatMoney(order.total)}`,
+		`Товары: ${formatMoney(subtotal)}`,
+		...(promo
+			? [`Промокод ${promo.code} −${promo.percent}%: −${formatMoney(discount)}`]
+			: []),
+		`Итого: ${formatMoney(subtotal - discount)}`,
 		"Доставка оплачивается отдельно.",
 	].join("\n");
 }
