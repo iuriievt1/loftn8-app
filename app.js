@@ -4,7 +4,7 @@ const INSTAGRAM_URL = "https://www.instagram.com/farsh.prod/";
 const TELEGRAM_URL = "https://t.me/farshikistore";
 const TELEGRAM_HANDLE = "@farshikistore";
 const API_BASE_URL = "https://farshiki.onrender.com";
-const PROMO_CODES = { FARSHIKI: 10 };
+const PROMO_CODES = { KISS: 10 };
 
 const products = [
 	{
