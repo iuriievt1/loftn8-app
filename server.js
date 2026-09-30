@@ -203,7 +203,7 @@ function corsHeaders() {
 	};
 }
 
-const DEFAULT_PROMO_CODES = { KISS: 10 };
+const DEFAULT_PROMO_CODES = { KIS: 10 };
 
 function getPromoCodes() {
 	const raw = process.env.PROMO_CODES;
